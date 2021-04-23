@@ -1,5 +1,7 @@
 #include "Audio.h"
 #include "File.h"
+
+#define FMT_HEADER_ONLY
 #include "fmt/format.h"
 
 Audio::Audio()

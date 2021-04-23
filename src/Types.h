@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+#define FMT_HEADER_ONLY
 #include "fmt/format.h"
 
 using MAP_INT = int16_t;
