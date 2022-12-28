@@ -91,15 +91,15 @@ abc工程用来转换之前的数据。建议自行调整代码后，使用调�
 以下库在Windows下建议使用vcpkg或者msys2来安装（强烈推荐前者，不推荐后者），或者也可以去官网下载，请自行选择。在Linux下编译时则应优先考虑使用系统的包管理器（例如apt等）自动安装的库，在Mac下可以使用homebrew来安装。
 
 - SDL2 <https://www.libsdl.org/>
-  - SDL2_image <https://www.libsdl.org/projects/SDL_image/>
-  - SDL2_ttf <https://www.libsdl.org/projects/SDL_ttf/>
-  - SDL2_mixer <https://www.libsdl.org/projects/SDL_mixer/>
+  - SDL2-image <https://www.libsdl.org/projects/SDL_image/>
+  - SDL2-ttf <https://www.libsdl.org/projects/SDL_ttf/>
+  - SDL2-mixer <https://www.libsdl.org/projects/SDL_mixer/>
 - libiconv <https://www.gnu.org/software/libiconv/>
 - lua <https://www.lua.org/>
 - PicoSHA2 <https://github.com/okdshin/PicoSHA2>
 - sqlite3 <https://www.sqlite.org/>
 - OpenCC <https://github.com/BYVoid/OpenCC>
-- {fmt} <https://github.com/fmtlib/fmt>
+- fmt <https://github.com/fmtlib/fmt>
 - asio boost的一部分，需在预处理中打开网络功能，vcpkg可以只安装asio
 
 以下库通常不在包管理工具中，故已包含在工程里。
@@ -166,7 +166,6 @@ If the codes are used in Jin Yong's novels related games, the game is strictly p
 <img src='https://raw.githubusercontent.com/scarsty/kys-cpp/master/pic/2.png' />
 
 <img src='https://raw.githubusercontent.com/scarsty/kys-cpp/master/pic/3.png' />
-
 
 ## 其他
 
