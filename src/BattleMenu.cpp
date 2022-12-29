@@ -5,7 +5,7 @@
 #include "PotConv.h"
 #include "Random.h"
 #include "Save.h"
-#include "convert.h"
+#include "strfunc.h"
 
 BattleActionMenu::BattleActionMenu(BattleScene* b)
 {
@@ -25,7 +25,7 @@ void BattleActionMenu::setRole(Role* r)
     for (auto c : childs_)
     {
         c->setVisible(true);
-        c->setState(Normal);
+        c->setState(NodeNormal);
     }
 
     //移动过则不可移动
@@ -86,8 +86,8 @@ void BattleActionMenu::dealEvent(BP_Event& e)
     {
         int act = autoSelect(role_);
         setResult(act);
-        setAllChildState(Normal);
-        childs_[act]->setState(Press);
+        setAllChildState(NodeNormal);
+        childs_[act]->setState(NodePress);
         setExit(true);
         setVisible(false);    //AI不画菜单了，太乱
         return;
@@ -304,7 +304,7 @@ int BattleActionMenu::autoSelect(Role* role)
                                 }
                                 if (total_hurt > -1)
                                 {
-                                    //fmt::print("AI %s %s (%d, %d): %d\n", PotConv::to_read(role->Name).c_str(), PotConv::to_read(magic->Name).c_str(), ix, iy, total_hurt);
+                                    //fmt1::print("AI {} {} ({}, {}): {}\n", role->Name, PotConv::to_read(magic->Name).c_str(), ix, iy, total_hurt);
                                 }
                             }
                         }
@@ -319,11 +319,11 @@ int BattleActionMenu::autoSelect(Role* role)
         double max_point = -1;
         for (auto aa : ai_action)
         {
-            fmt::print("AI {}: {} ", role->Name, getStringFromResult(aa.Action));
-            if (aa.item) { fmt::print("{} ", aa.item->Name); }
-            if (aa.magic) { fmt::print("{} ", aa.magic->Name); }
+            fmt1::print("AI {}: {} ", role->Name, getStringFromResult(aa.Action));
+            if (aa.item) { fmt1::print("{} ", aa.item->Name); }
+            if (aa.magic) { fmt1::print("{} ", aa.magic->Name); }
             double r = rand.rand() * 10;    //用于同分的情况，可以随机选择
-            fmt::print("score {:.2f}({:.2f})\n", aa.point, r);
+            fmt1::print("score {:.2f}({:.2f})\n", aa.point, r);
             //若评分仅有一个随机数的值，说明不在范围内，仅移动并结束
             if (aa.point == 0)
             {
@@ -350,44 +350,11 @@ int BattleActionMenu::autoSelect(Role* role)
 }
 
 //计算距离
-void BattleActionMenu::calDistanceLayer(int x, int y, int max_step /*=64*/)
+void BattleActionMenu::calDistanceLayer(int x, int y, int max_step)
 {
-    distance_layer_.setAll(max_step + 1);
-    std::vector<Point> cal_stack;
-    distance_layer_.data(x, y) = 0;
-    cal_stack.push_back({ x, y });
-    int count = 0;
-    int step = 0;
-    while (step <= 64)
-    {
-        std::vector<Point> cal_stack_next;
-        auto check_next = [&](Point p1) -> void
-        {
-            //未计算过且可以走的格子参与下一步的计算
-            if (distance_layer_.data(p1.x, p1.y) == max_step + 1 && battle_scene_->canWalk(p1.x, p1.y))
-            {
-                distance_layer_.data(p1.x, p1.y) = step + 1;
-                cal_stack_next.push_back(p1);
-                count++;
-            }
-        };
-        for (auto p : cal_stack)
-        {
-            distance_layer_.data(p.x, p.y) = step;
-            check_next({ p.x - 1, p.y });
-            check_next({ p.x + 1, p.y });
-            check_next({ p.x, p.y - 1 });
-            check_next({ p.x, p.y + 1 });
-            if (count >= distance_layer_.squareSize())
-            {
-                break;
-            }    //最多计算次数，避免死掉
-        }
-        if (cal_stack_next.size() == 0) { break; }    //无新的点，结束
-        cal_stack = cal_stack_next;
-        step++;
-    }
+    battle_scene_->calDistanceLayer(x, y, distance_layer_, max_step);
 }
+
 
 void BattleActionMenu::getFarthestToAll(Role* role, std::vector<Role*> roles, int& x, int& y)
 {
@@ -481,15 +448,15 @@ void BattleMagicMenu::onEntrance()
     {
         return;
     }
-    if (role_->isAuto())
-    {
-        magic_ = role_->AI_Magic;
-        setAllChildState(Normal);
-        setResult(0);
-        setExit(true);
-        setVisible(false);
-        return;
-    }
+    //if (role_->isAuto())
+    //{
+    //    magic_ = role_->AI_Magic;
+    //    setAllChildState(NodeNormal);
+    //    setResult(0);
+    //    setExit(true);
+    //    setVisible(false);
+    //    return;
+    //}
     forceActiveChild();
 }
 
@@ -507,7 +474,7 @@ void BattleMagicMenu::setRole(Role* r)
         {
             std::string s = m->Name;
             s += std::string(12 - Font::getTextDrawSize(s), ' ');
-            magic_names.push_back(fmt::format("{}{}  ", s, role_->getRoleShowLearnedMagicLevel(i)));
+            magic_names.push_back(fmt1::format("{}{}  ", s, role_->getRoleShowLearnedMagicLevel(i)));
         }
         else
         {
@@ -515,7 +482,6 @@ void BattleMagicMenu::setRole(Role* r)
         }
     }
     setStrings(magic_names);
-    setPosition(160, 200);
 
     //如果宽度为0的项隐藏
     for (auto child : childs_)
@@ -539,6 +505,60 @@ void BattleMagicMenu::onPressedOK()
         setExit(true);
     }
 }
+
+void BattleEquipItemMenu::onEntrance()
+{
+}
+
+void BattleEquipItemMenu::setRole(Role* r)
+{
+    role_ = r;
+    result_ = -1;
+    item_ = nullptr;
+    setVisible(true);
+
+    std::vector<std::string> item_names;
+    const auto items = Save::getInstance()->getAvailableEquipItems();
+    for (auto& pair : items)
+    {
+        auto item = std::get<0>(pair);
+        const auto count = std::get<1>(pair);
+
+        std::string s = item->Name;
+        s += std::string(12 - Font::getTextDrawSize(s), ' ');
+        item_names.push_back(fmt1::format("{}{}  ", s, count));
+    }
+    setStrings(item_names);
+
+    //如果宽度为0的项隐藏
+    for (auto child : childs_)
+    {
+        int w, h;
+        child->getSize(w, h);
+        if (w <= 0)
+        {
+            child->setVisible(false);
+        }
+    }
+    arrange(0, 0, 0, 30);
+}
+
+void BattleEquipItemMenu::onPressedOK()
+{
+    checkActiveToResult();
+    if (result_ >= 0)
+    {
+        std::vector<int> ids;
+        const auto items = Save::getInstance()->getAvailableEquipItems();
+        item_ = std::get<0>(items[result_]);
+    }
+
+    if (item_)
+    {
+        setExit(true);
+    }
+}
+
 
 BattleItemMenu::BattleItemMenu()
 {

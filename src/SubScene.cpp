@@ -1,6 +1,7 @@
 #include "SubScene.h"
 #include "Audio.h"
 #include "BattleScene.h"
+#include "Console.h"
 #include "Event.h"
 #include "MainScene.h"
 #include "ParticleExample.h"
@@ -35,7 +36,7 @@ void SubScene::setID(int id)
     //submap_info_->ID = submap_id_;    //这句是修正存档中可能存在的错误
     exit_music_ = submap_info_->ExitMusic;
     Audio::getInstance()->playMusic(submap_info_->EntranceMusic);
-    fmt::print("Sub Scene {}, {}\n", submap_id_, submap_info_->Name);
+    fmt1::print("Sub Scene {}, {}\n", submap_id_, submap_info_->Name);
 }
 
 void SubScene::draw()
@@ -88,7 +89,7 @@ void SubScene::draw()
                     }
                     else
                     {
-                        auto tex = TextureManager::getInstance()->loadTexture("smap", num);
+                        auto tex = TextureManager::getInstance()->getTexture("smap", num);
                         //用大图画时的闪烁地面
                         if (tex->count > 1)
                         {
@@ -166,12 +167,13 @@ void SubScene::draw()
         }
     }
     Engine::getInstance()->renderAssistTextureToWindow();
-    //fmt::print("%g\n", t0.getElapsedTime());
+    //fmt1::print("%g\n", t0.getElapsedTime());
 }
 
 void SubScene::dealEvent(BP_Event& e)
 {
     //实际上很大部分与大地图类似，这里暂时不合并了，就这样
+
     int x = man_x_, y = man_y_;
 
     if (checkEvent3(x, y))
@@ -184,70 +186,115 @@ void SubScene::dealEvent(BP_Event& e)
         //clearEvent(e);
         total_step_ = 0;
     }
-    //键盘走路部分，检测4个方向键
-    int pressed = 0;
-    for (auto i = int(BPK_RIGHT); i <= int(BPK_UP); i++)
+    // Tab激活控制台
+    if (e.type == BP_KEYUP && e.key.keysym.sym == BPK_TAB)
     {
-        if (i != pre_pressed_ && Engine::getInstance()->checkKeyPress(i))
+        Console c;
+    }
+    if ((e.type == BP_KEYUP && e.key.keysym.sym == BPK_ESCAPE)
+        || (e.type == BP_MOUSEBUTTONUP && e.button.button == BP_BUTTON_RIGHT)
+        || (e.type == BP_CONTROLLERBUTTONUP && e.cbutton.button == BP_CONTROLLER_BUTTON_START))
+    {
+        UI::getInstance()->run();
+        auto item = UI::getInstance()->getUsedItem();
+        if (item && item->ItemType == 0)
         {
-            pressed = i;
-        }
-    }
-    if (pressed == 0 && Engine::getInstance()->checkKeyPress(pre_pressed_))
-    {
-        pressed = pre_pressed_;
-    }
-    pre_pressed_ = pressed;
-
-    if (pressed)
-    {
-        if (total_step_ < 1 || total_step_ >= first_step_delay_)
-        {
-            changeTowardsByKey(pressed);
-            getTowardsPosition(man_x_, man_y_, towards_, &x, &y);
-            tryWalk(x, y);
-        }
-        total_step_++;
-    }
-    else
-    {
-        total_step_ = 0;
-    }
-
-    if (!way_que_.empty())
-    {
-        Point p = way_que_.back();
-        x = p.x;
-        y = p.y;
-        if (calDistance(man_x_, man_y_, x, y) <= 1)
-        {
-            auto tw = calTowards(man_x_, man_y_, x, y);
-            if (tw != Towards_None)
+            if (checkEvent2(man_x_, man_y_, towards_, item->ID))
             {
-                towards_ = tw;
+                step_ = 0;
             }
-            tryWalk(x, y);
-            way_que_.pop_back();
-            if (way_que_.empty() && mouse_event_x_ >= 0 && mouse_event_y_ >= 0)
+        }
+    }
+
+    //键盘走路部分，检测4个方向键
+    {
+        auto engine = Engine::getInstance();
+        int pressed = 0;
+        auto axis_x = engine->gameControllerGetAxis(BP_CONTROLLER_AXIS_LEFTX);
+        auto axis_y = engine->gameControllerGetAxis(BP_CONTROLLER_AXIS_LEFTY);
+        if (abs(axis_x) < 10000) { axis_x = 0; }
+        if (abs(axis_y) < 10000) { axis_y = 0; }
+        if (axis_x != 0 || axis_y != 0)
+        {
+            Pointf axis{ double(axis_x), double(axis_y) };
+            auto to = realTowardsToFaceTowards(axis);
+            if (to == Towards_LeftUp) { pressed = BPK_LEFT; }
+            if (to == Towards_LeftDown) { pressed = BPK_DOWN; }
+            if (to == Towards_RightDown) { pressed = BPK_RIGHT; }
+            if (to == Towards_RightUp) { pressed = BPK_UP; }
+        }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_LEFT)) { pressed = BPK_LEFT; }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_DOWN)) { pressed = BPK_DOWN; }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_RIGHT)) { pressed = BPK_RIGHT; }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_UP)) { pressed = BPK_UP; }
+        if (engine->checkKeyPress(BPK_a)) { pressed = BPK_LEFT; }
+        if (engine->checkKeyPress(BPK_s)) { pressed = BPK_DOWN; }
+        if (engine->checkKeyPress(BPK_d)) { pressed = BPK_RIGHT; }
+        if (engine->checkKeyPress(BPK_w)) { pressed = BPK_UP; }
+
+        for (auto i = int(BPK_RIGHT); i <= int(BPK_UP); i++)
+        {
+            if (i != pre_pressed_ && Engine::getInstance()->checkKeyPress(i))
             {
-                auto tw = calTowards(man_x_, man_y_, mouse_event_x_, mouse_event_y_);
+                pressed = i;
+            }
+        }
+        if (pressed == 0 && Engine::getInstance()->checkKeyPress(pre_pressed_))
+        {
+            pressed = pre_pressed_;
+        }
+        pre_pressed_ = pressed;
+
+        if (pressed)
+        {
+            if (total_step_ < 1 || total_step_ >= first_step_delay_)
+            {
+                changeTowardsByKey(pressed);
+                getTowardsPosition(man_x_, man_y_, towards_, &x, &y);
+                tryWalk(x, y);
+            }
+            total_step_++;
+        }
+        else
+        {
+            total_step_ = 0;
+        }
+
+        if (!way_que_.empty())
+        {
+            Point p = way_que_.back();
+            x = p.x;
+            y = p.y;
+            if (calDistance(man_x_, man_y_, x, y) <= 1)
+            {
+                auto tw = calTowards(man_x_, man_y_, x, y);
                 if (tw != Towards_None)
                 {
                     towards_ = tw;
                 }
-                checkEvent1(man_x_, man_y_, towards_);
-                setMouseEventPoint(-1, -1);
+                tryWalk(x, y);
+                way_que_.pop_back();
+                if (way_que_.empty() && mouse_event_x_ >= 0 && mouse_event_y_ >= 0)
+                {
+                    auto tw = calTowards(man_x_, man_y_, mouse_event_x_, mouse_event_y_);
+                    if (tw != Towards_None)
+                    {
+                        towards_ = tw;
+                    }
+                    checkEvent1(man_x_, man_y_, towards_);
+                    setMouseEventPoint(-1, -1);
+                }
             }
+            else
+            {
+                way_que_.clear();
+            }
+            //if (isExit(x, y)) { way_que_.clear(); }
         }
-        else
-        {
-            way_que_.clear();
-        }
-        //if (isExit(x, y)) { way_que_.clear(); }
     }
-
     //检查触发剧情事件
-    if (e.type == BP_KEYUP && (e.key.keysym.sym == BPK_RETURN || e.key.keysym.sym == BPK_SPACE))
+    if ((e.type == BP_KEYUP && (e.key.keysym.sym == BPK_RETURN || e.key.keysym.sym == BPK_SPACE))
+        || (e.type == BP_CONTROLLERBUTTONUP && e.cbutton.button == BP_CONTROLLER_BUTTON_A))
     {
         if (checkEvent1(x, y, towards_))
         {
@@ -293,7 +340,7 @@ void SubScene::backRun()
     {
         step_ = 0;
     }
-    if (current_frame_ % 2 == 0)
+    if (current_frame_ % int(200 / RunNode::getRefreshInterval()) == 0)
     {
         for (int i = 0; i < SUBMAP_EVENT_COUNT; i++)
         {
@@ -308,7 +355,7 @@ void SubScene::backRun()
             }
         }
     }
-    //fmt::print("sub scene %d,", current_frame_);
+    //fmt1::print("sub scene %d,", current_frame_);
 }
 
 void SubScene::onEntrance()
@@ -370,15 +417,6 @@ void SubScene::onExit()
 
 void SubScene::onPressedCancel()
 {
-    UI::getInstance()->run();
-    auto item = UI::getInstance()->getUsedItem();
-    if (item && item->ItemType == 0)
-    {
-        if (checkEvent2(man_x_, man_y_, towards_, item->ID))
-        {
-            step_ = 0;
-        }
-    }
 }
 
 //冗余过多待清理

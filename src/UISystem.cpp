@@ -3,13 +3,16 @@
 #include "Event.h"
 #include "Script.h"
 #include "Engine.h"
+#include "GameUtil.h"
+#include "UIKeyConfig.h"
 
 UISystem::UISystem()
 {
     title_ = std::make_shared<MenuText>();
-    title_->setStrings({ "讀取進度", "保存進度", "我的代碼", "離開遊戲" });
+    title_->setStrings({ "讀取進度", "保存進度", "我的代碼","鍵位配置", "離開遊戲" });
     title_->setFontSize(24);
     title_->arrange(100, 50, 120, 0);
+    title_->setLRStyle(1);
     addChild(title_);
 }
 
@@ -38,7 +41,13 @@ void UISystem::onPressedOK()
     }
     else if (title_->getResult() == 2)
     {
-        Script::getInstance()->runScript("../game/script/1.lua");
+        Script::getInstance()->runScript(GameUtil::PATH() + "script/1.lua");
+    }
+    else if (title_->getResult() == 3)
+    {
+        auto menu = std::make_shared<UIKeyConfig>();
+        menu->setPosition(200, 200);
+        menu->run();
     }
     else if (title_->getResult() == title_->getChildCount() - 1)
     {
@@ -58,7 +67,7 @@ int UISystem::askExit(int mode)
         menu->setStrings({ "離開遊戲", "返回開頭", "我點錯了" });
         menu->setFontSize(24);
         menu->arrange(0, 0, 0, 40);
-        int x = 760, y = 100;
+        int x = 880, y = 100;
         if (mode == 1)
         {
             x = Engine::getInstance()->getWindowWidth() - 150;
@@ -67,9 +76,10 @@ int UISystem::askExit(int mode)
         int r = menu->runAtPosition(x, y);
         if (r == 0)
         {
-            exitAll();
-            Event::getInstance()->forceExit();
-            ret = 0;
+            //exitAll();
+            //Event::getInstance()->forceExit();
+            //ret = 0;
+            exit(0);    //爱咋咋地
         }
         else if (r == 1)
         {

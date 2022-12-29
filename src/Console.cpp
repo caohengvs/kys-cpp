@@ -9,7 +9,7 @@
 #include "Save.h"
 #include "SuperMenuText.h"
 #include "TextureManager.h"
-#include "convert.h"
+#include "strfunc.h"
 
 #include <algorithm>
 #include <functional>
@@ -20,6 +20,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "Event.h"
 
 Console::Console()
 {
@@ -32,10 +34,14 @@ Console::Console()
         {
             code = input->getText();
         }
+        else
+        {
+            return;
+        }
     }
     // 捂脸
     code = PotConv::conv(code, "cp936", "utf-8");
-    auto splits = convert::splitString(code, " ");
+    auto splits = strfunc::splitString(code, " ");
     //if (splits.empty()) return;
     if (code == "menutest")
     {
@@ -48,7 +54,7 @@ Console::Console()
         smt->setInputPosition(180, 80);
         smt->run();
         int id = smt->getResult();
-        fmt::print("result %d\n", id);
+        fmt1::print("result %d\n", id);
     }
     else if (code == "chuansong" || code == "teleport" || code == "mache" || code == "")
     {
@@ -78,8 +84,8 @@ Console::Console()
             int fontSize = 28;
             TextureManager::getInstance()->renderTexture("title", 126, { nx, ny, 400, 400 }, { 192, 192, 192, 255 }, 255);
             //Engine::getInstance()->fillColor({ 0, 0, 0, 192 }, nx, ny, 400, 400);
-            Font::getInstance()->draw(fmt::format("{}，{}", scene->Name, scene->ID), fontSize, nx + 20, ny + 20);
-            Font::getInstance()->draw(fmt::format("（{}，{}）", scene->MainEntranceX1, scene->MainEntranceY1),
+            Font::getInstance()->draw(fmt1::format("{}，{}", scene->Name, scene->ID), fontSize, nx + 20, ny + 20);
+            Font::getInstance()->draw(fmt1::format("（{}，{}）", scene->MainEntranceX1, scene->MainEntranceY1),
                 fontSize, nx + 20, ny + 20 + fontSize * 1.5);
 
             int man_x_ = scene->MainEntranceX1;
@@ -155,16 +161,18 @@ Console::Console()
             auto scene = Save::getInstance()->getSubMapInfos()[id];
             MainScene::getInstance()->forceEnterSubScene(id, scene->EntranceX, scene->EntranceY);
             MainScene::getInstance()->setManPosition(scene->MainEntranceX1, scene->MainEntranceY1);
-            fmt::print("傳送到{}\n", id);
+            fmt1::print("傳送到{}\n", id);
         }
     }
+    /*
     else if (splits[0] == "newsave" && splits.size() >= 2)
     {
         int rec;
         try
         {
             rec = std::stoi(splits[1]);
-        } catch (...)
+        }
+        catch (...)
         {
             return;
         }
@@ -181,7 +189,8 @@ Console::Console()
         try
         {
             rec = std::stoi(splits[1]);
-        } catch (...)
+        }
+        catch (...)
         {
             return;
         }
@@ -201,12 +210,13 @@ Console::Console()
         try
         {
             idx = std::stoi(splits[2]);
-        } catch (...)
+        }
+        catch (...)
         {
             return;
         }
         Save::getInstance()->insertAt(splits[1], idx);
-    }
+    }*/
     else if (splits[0] == "host" && splits.size() > 1)
     {
         Save::getInstance()->save(11);
@@ -238,5 +248,12 @@ Console::Console()
         battle->run();
 
         Save::getInstance()->load(11);
+    }
+    else if ((splits[0] == "battle" || splits[0] == "b") && splits.size() > 1)
+    {
+        Save::getInstance()->save(11);
+        int k = atoi(splits[1].c_str());
+        Event::getInstance()->tryBattle(k, 0);
+        //Save::getInstance()->load(11);
     }
 }

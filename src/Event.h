@@ -1,10 +1,11 @@
 #pragma once
+#include "DrawNode.h"
 #include "FunctionTrait.h"
 #include "Menu.h"
 #include "Random.h"
-#include "RunNode.h"
 #include "SubScene.h"
 #include "Talk.h"
+#include "Font.h"
 
 //event_id表示在kdef中的编号，event_index表示在场景中的编号
 
@@ -72,6 +73,7 @@ public:
     //以下大部分参数为int，请注意游戏数据中使用的是int16_t，有降低效率的可能
     //void clear() {}
     void oldTalk(int talk_id, int head_id, int style);
+    void newTalk(const std::string& talk_content, int head_id, int style);
     void addItem(int item_id, int count);
     void modifyEvent(int submap_id, int event_index, int cannotWalk, int Num, int Event1, int Event2, int Event3,
         int BeginPic1, int EndPic, int BeginPic2, int PicDelay, int x, int y);
@@ -160,13 +162,16 @@ public:
     }
 
     //扩展的50指令，传入下一个指令的指针，某一条需要
-    void instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e6, int* code_ptr = nullptr);
+    void instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e6, int* code_ptr = nullptr, int* code_value = nullptr);
+
+    //某些指令需要绘图
+    std::shared_ptr<DrawNode> event_node_;
 
 public:
     void print_e(const std::vector<int>& e, int i, int size)
     {
         auto v = std::vector<int>(e.begin() + i, e.begin() + i + size);
-        fmt::print("{}\n", v);
+        fmt1::print("{}\n", v);
     }
 
     template <typename F, typename C, std::size_t... I>

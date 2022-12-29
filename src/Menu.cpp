@@ -13,48 +13,63 @@ Menu::~Menu()
 
 void Menu::dealEvent(BP_Event& e)
 {
+    if (deal_event_ == 0) { return; }
+    Direct direct = DIrectNone;
     //此处处理键盘响应
     if (e.type == BP_KEYDOWN)
     {
-        Direct direct = None;
-
         switch (e.key.keysym.sym)
         {
         case BPK_LEFT:
-            direct = Left;
+            direct = DirectLeft;
             break;
         case BPK_UP:
-            direct = Up;
+            direct = DirectUp;
             break;
         case BPK_RIGHT:
-            direct = Right;
+            direct = DirectRight;
             break;
         case BPK_DOWN:
-            direct = Down;
+            direct = DirectDown;
             break;
         default:
             break;
         }
-
-        if (direct != None)
+    }
+    if (e.type == BP_CONTROLLERBUTTONDOWN)
+    {
+        auto engine = Engine::getInstance();
+        if (e.cbutton.button == BP_CONTROLLER_BUTTON_DPAD_DOWN) { direct = DirectDown; }
+        if (e.cbutton.button == BP_CONTROLLER_BUTTON_DPAD_UP) { direct = DirectUp; }
+        if (lr_style_ == 0)
         {
-            //如果全都没被选中，一般是鼠标漂到外边，则先选中上次的
-            bool all_normal = checkAllNormal();
-            setAllChildState(Normal);
-            if (all_normal)
-            {
-                //当前的如果不显示，则找第一个
-                if (active_child_ < childs_.size() && !childs_[active_child_]->getVisible())
-                {
-                    active_child_ = findFristVisibleChild();
-                }
-            }
-            else
-            {
-                active_child_ = findNextVisibleChild(active_child_, direct);
-            }
-            forceActiveChild();
+            if (e.cbutton.button == BP_CONTROLLER_BUTTON_DPAD_RIGHT) { direct = DirectRight; }
+            if (e.cbutton.button == BP_CONTROLLER_BUTTON_DPAD_LEFT) { direct = DirectLeft; }
         }
+        else
+        {
+            if (e.cbutton.button == BP_CONTROLLER_BUTTON_LEFTSHOULDER) { direct = DirectLeft; }
+            if (e.cbutton.button == BP_CONTROLLER_BUTTON_RIGHTSHOULDER) { direct = DirectRight; }
+        }
+    }
+    if (direct != DIrectNone)
+    {
+        //如果全都没被选中，一般是鼠标漂到外边，则先选中上次的
+        bool all_normal = checkAllNormal();
+        setAllChildState(NodeNormal);
+        if (all_normal)
+        {
+            //当前的如果不显示，则找第一个
+            if (active_child_ < childs_.size() && !childs_[active_child_]->getVisible())
+            {
+                active_child_ = findFristVisibleChild();
+            }
+        }
+        else
+        {
+            active_child_ = findNextVisibleChild(active_child_, direct);
+        }
+        forceActiveChild();
     }
 }
 
@@ -109,7 +124,7 @@ bool Menu::checkAllNormal()
     bool all_normal = true;
     for (auto c : childs_)
     {
-        if (c->getVisible() && c->getState() != Normal)
+        if (c->getVisible() && c->getState() != NodeNormal)
         {
             all_normal = false;
             break;

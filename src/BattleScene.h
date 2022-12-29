@@ -14,7 +14,7 @@ class BattleNetwork;
 class BattleScene : public Scene
 {
 public:
-    static RandomDouble rng_;
+    RandomDouble rand_;
 
     BattleScene();
     BattleScene(int id);
@@ -125,8 +125,9 @@ public:
     virtual bool isOutScreen(int x, int y) override;
     virtual bool isNearEnemy(int team, int x, int y);    //是否x，y上的人物与team不一致
 
-    virtual int calRoleDistance(Role* r1, Role* r2) { return calDistance(r1->X(), r1->Y(), r2->X(), r2->Y()); }                     //计算距离
+    virtual int calRoleDistance(Role* r1, Role* r2) { return calDistance(r1->X(), r1->Y(), r2->X(), r2->Y()); }               //计算距离
     virtual int calDistanceRound(int x1, int x2, int y1, int y2) { return sqrt((x1 - y1) * (x1 - y1) + (x2 - y2) * (x2 - y2)); }    //计算欧氏距离
+    void calDistanceLayer(int x, int y, MapSquareInt& distance_layer, int max_step);
 
     virtual Role* getSelectedRole();    //获取恰好在选择点的角色
 
@@ -149,10 +150,10 @@ public:
     virtual void useMagicAnimation(Role* r, Magic* m);                                 //使用武学动画
     virtual void actionAnimation(Role* r, int style, int effect_id, int shake = 0);    //行动动画
 
-    virtual int calMagicHurt(Role* r1, Role* r2, Magic* magic);                         //计算武学对单人的伤害
+    virtual int calMagicHurt(Role* r1, Role* r2, Magic* magic, int dis = -1);           //计算武学对单人的伤害
     virtual int calMagiclHurtAllEnemies(Role* r, Magic* m, bool simulation = false);    //计算全部人物的伤害
 
-    virtual int calHiddenWeaponHurt(Role* r1, Role* r2, Item* item);    //计算暗器伤害
+    virtual int calHiddenWeaponHurt(Role* r1, Role* r2, Item* item, int dis = -1);    //计算暗器伤害
 
     virtual void showMagicName(std::string name);    //显示武学名
 

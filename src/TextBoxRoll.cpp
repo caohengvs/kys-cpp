@@ -20,7 +20,7 @@ void TextBoxRoll::draw()
         if (i < begin_line_)
         {
             continue;
-        }        
+        }
         if (roll_line_ > 0 && line_count >= roll_line_)
         {
             break;
@@ -57,5 +57,5 @@ void TextBoxRoll::dealEvent(BP_Event& e)
     default:
         break;
     }
-    begin_line_ = GameUtil::limit(begin_line_, 0, texts_.size() - roll_line_);
+    begin_line_ = GameUtil::limit(begin_line_, 0, int(texts_.size() - roll_line_));
 }

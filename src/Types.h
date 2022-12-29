@@ -1,9 +1,9 @@
 #pragma once
-#include "Engine.h"
+#include "Point.h"
 #include <cstdint>
 #include <string>
+#include <vector>
 
-#define FMT_HEADER_ONLY
 #include "fmt/format.h"
 
 using MAP_INT = int16_t;
@@ -78,7 +78,7 @@ enum
     SUBMAP_LAYER_COUNT = 6,
     MAINMAP_COORD_COUNT = 480,
     SUBMAP_EVENT_COUNT = 200,    //单场景最大事件数
-    ITEM_IN_BAG_COUNT = 200,     //最大物品数
+    ITEM_IN_BAG_COUNT = 1000,    //最大物品数
     TEAMMATE_COUNT = 6,          //最大队伍人员数
 };
 
@@ -96,6 +96,29 @@ enum
     SHOP_ITEM_COUNT = 5,
 };
 
+enum class ActType_t : int
+{
+    None = -1,
+    Medcine,
+    Fist,
+    Sword,
+    Knife,
+    Unusual,
+};
+
+enum class OperationType_t : int
+{
+    None = -1,
+    Light,
+    Heavy,
+    Long,
+    Slash,
+    Item,
+};
+
+using AT = ActType_t;
+using OT = OperationType_t;
+
 //成员函数若是开头大写，并且无下划线，则可以直接访问并修改
 
 //存档中的角色数据
@@ -111,7 +134,11 @@ public:
     int HP, MaxHP, Hurt, Poison, PhysicalPower;
     int ExpForMakeItem;
     int Equip0, Equip1;
-    int Frame[15];    //动作帧数，改为不在此处保存，故实际无用，另外延迟帧数对效果几乎无影响，废弃
+    //int Frame[15];    //动作帧数，改为不在此处保存，故实际无用，另外延迟帧数对效果几乎无影响，废弃
+    int EquipMagic[4];     //装备武学
+    int EquipMagic2[4];    //装备被动武学
+    int EquipItem;         //装备物品
+    int Frame[6];          //帧数，现仅用于占位
     int MPType, MP, MaxMP;
     int Attack, Speed, Defence, Medicine, UsePoison, Detoxification, AntiPoison, Fist, Sword, Knife, Unusual, HiddenWeapon;
     int Knowledge, Morality, AttackWithPoison, AttackTwice, Fame, IQ;
@@ -125,32 +152,36 @@ public:
 struct Role : public RoleSave
 {
 public:
-    int Team;
-    int FaceTowards, Dead, Step;
-    int Pic, BattleSpeed;
-    int ExpGot, Auto;
+    int Team = 0;
+    int FaceTowards = 0, Dead = 0, Step = 0;
+    int Pic = 0, BattleSpeed = 0;
+    int ExpGot = 0, Auto = 0;
     int FightFrame[5] = { -1 };
-    int FightingFrame;
-    int Moved, Acted;
-    int ActTeam;    //选择行动阵营 0-我方，1-非我方，画效果层时有效
+    int FightingFrame = 0;
+    int Moved = 0, Acted = 0;
+    int ActTeam = 0;    //选择行动阵营 0-我方，1-非我方，画效果层时有效
 
-    int SelectedMagic;
+    int SelectedMagic = -1;
 
-    int Progress;
+    int Progress = 0;
 
     struct ShowString
     {
+        struct Color_t
+        {
+            uint8_t r, g, b, a;
+        };
         std::string Text;
-        BP_Color Color;
-        int Size;
+        Color_t Color;
+        int Size = 0;
     };
     //显示文字效果使用
     struct ActionShowInfo
     {
         std::vector<ShowString> ShowStrings;
-        int BattleHurt;
-        int ProgressChange;
-        int Effect;
+        int BattleHurt = 0;
+        int ProgressChange = 0;
+        int Effect = -1;
         ActionShowInfo()
         {
             clear();
@@ -166,8 +197,8 @@ public:
     ActionShowInfo Show;
 
 private:
-    int X_, Y_;
-    int prevX_, prevY_;
+    int X_ = 0, Y_ = 0;
+    int prevX_ = 0, prevY_ = 0;
 
 public:
     MapSquare<Role*>* position_layer_ = nullptr;
@@ -195,6 +226,9 @@ public:
     int getMagicLevelIndex(Magic* magic);
     int getMagicLevelIndex(int magic_id);
     int getMagicOfRoleIndex(Magic* magic);
+    int getEquipMagicOfRoleIndex(Magic* magic);
+
+    std::vector<Magic*> getLearnedMagics();
 
     void limit();
 
@@ -203,24 +237,52 @@ public:
 
     bool isAuto() { return Auto != 0 || Team != 0; }
 
-    void addShowString(std::string text, BP_Color color = { 255, 255, 255, 255 }, int size = 28) { Show.ShowStrings.push_back({ text, color, size }); }
+    void addShowString(std::string text, ShowString::Color_t color = { 255, 255, 255, 255 }, int size = 28) { Show.ShowStrings.push_back({ text, color, size }); }
     void clearShowStrings() { Show.ShowStrings.clear(); }
 
     int movedDistance() { return abs(X_ - prevX_) + abs(Y_ - prevY_); }
 
+    int getActProperty(int type)
+    {
+        switch (type)
+        {
+        case 0: return Medicine; break;
+        case 1: return Fist; break;
+        case 2: return Sword; break;
+        case 3: return Knife; break;
+        case 4: return Unusual; break;
+        }
+        return 0;
+    }
+
+    bool canUseItem(Item* i);
+    void useItem(Item* i);
+    void levelUp();
+    bool canLevelUp();
+    int getLevelUpExp(int level);
+    bool canFinishedItem();
+    int getFinishedExpForItem(Item* i);
+
+    void equip(Item* i);
+
+    //以下3个函数的返回值为需要显示的数值
+    int medicine(Role* r2);
+    int detoxification(Role* r2);
+    int usePoison(Role* r2);
+
 public:
     int AI_Action = 0;
-    int AI_MoveX, AI_MoveY;
-    int AI_ActionX, AI_ActionY;
+    int AI_MoveX = 0, AI_MoveY = 0;
+    int AI_ActionX = 0, AI_ActionY = 0;
     Magic* AI_Magic = nullptr;
     Item* AI_Item = nullptr;
 
 public:
-    int Network_Action;
-    int Network_MoveX;
-    int Network_MoveY;
-    int Network_ActionX;
-    int Network_ActionY;
+    int Network_Action = 0;
+    int Network_MoveX = 0;
+    int Network_MoveY = 0;
+    int Network_ActionX = 0;
+    int Network_ActionY = 0;
     Magic* Network_Magic = nullptr;
     Item* Network_Item = nullptr;
 
@@ -230,10 +292,46 @@ public:
     bool Competing = false;
 
 public:
-    static Role* getMaxValue() { return &max_role_value_; }
+    Pointf Pos;            //亚像素的直角坐标
+    Pointf RealTowards;    //面对的方向，计算攻击位置，击退方向等
+    //以下用于一些被动移动的计算，例如闪身，击退等，主动移动可以直接修改坐标
+    Pointf Velocity;           //指该质点的速度，每帧据此计算坐标
+    Pointf Acceleration;       //加速度
+    //int VelocitytFrame = 0;    //大于0时质点速度才生效
+    int HurtFrame = 0;         //正在受到伤害
+    int CoolDown = 0;          //冷却
+    int Attention = 0;         //出场
+    int Invincible = 0;        //无敌时间
+    int Frozen = 0;            //静止时间
+    int Shake = 0;             //震动时间
 
-private:
-    static Role max_role_value_;
+    int HaveAction = 0;        //开始行动
+    int ActType = -1;          //医拳剑刀特
+    int ActFrame = 0;          //行动帧数
+    int PreActTimer = 0;       //上次行动的时间
+    int OperationType = -1;    //0-点攻击，1-面攻击，2-远程，3-闪身， 4-器
+    int OperationCount = 0;    //使用同一攻击的计数
+    int HurtThisFrame = 0;     //一帧内受到伤害累积
+    int FindingWay = 0;        //ai正在找路
+
+    Magic* UsingMagic = nullptr;
+    Item* UsingItem = nullptr;
+
+public:
+    static Role* getMaxValue()
+    {
+        static Role max_role_value;
+        return &max_role_value;
+    }
+    static std::vector<int>& level_up_list()
+    {
+        static std::vector<int> list;
+        return list;
+    }
+
+    static void setMaxValue();
+    static void setLevelUpList();
+    void resetBattleInfo();
 };
 
 //存档中的物品数据
@@ -264,6 +362,7 @@ public:
 
 public:
     bool isCompass();
+    static void setSpecialItems();
 };
 
 //存档中的武学数据（无适合对应翻译，而且武侠小说中的武学近于魔法，暂且如此）

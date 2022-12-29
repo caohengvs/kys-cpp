@@ -6,7 +6,7 @@
 #include "Save.h"
 #include "ShowRoleDifference.h"
 #include "TeamMenu.h"
-#include "convert.h"
+#include "strfunc.h"
 
 UIItem::UIItem()
 {
@@ -24,6 +24,8 @@ UIItem::UIItem()
     title_->setStrings({ "劇情", "兵甲", "丹藥", "暗器", "拳經", "劍譜", "刀錄", "奇門", "心法" });
     title_->setFontSize(24);
     title_->arrange(0, 50, 64, 0);
+    title_->setDealEvent(0);
+    title_->setLRStyle(1);
     addChild(title_);
 
     cursor_ = std::make_shared<TextBox>();
@@ -32,7 +34,7 @@ UIItem::UIItem()
     addChild(cursor_);
 
     active_child_ = 0;
-    getChild(0)->setState(Pass);
+    getChild(0)->setState(NodePass);
 }
 
 UIItem::~UIItem()
@@ -116,7 +118,7 @@ void UIItem::checkCurrentItem()
         title_->forceActiveChild(force_item_type_);
     }
     int active = title_->getActiveChildIndex();
-    title_->getChild(active)->setState(Pass);
+    title_->getChild(active)->setState(NodePass);
     geItemsByType(active);
     int type_item_count = available_items_.size();
     //从这里计算出左上角可以取的最大值
@@ -144,7 +146,7 @@ void UIItem::checkCurrentItem()
         {
             button->setTexture("item", -1);
         }
-        if (button->getState() == Pass || button->getState() == Press)
+        if (button->getState() == NodePass || button->getState() == NodePress)
         {
             current_button = button;
             //result_ = current_item_->ID;
@@ -159,11 +161,11 @@ void UIItem::checkCurrentItem()
         current_button->getPosition(x, y);
         current_item_ = Save::getInstance()->getItem(current_button->getTexutreID());
         //让光标显示出来
-        if (current_button->getState() == Pass)
+        if (current_button->getState() == NodePass)
         {
             x += 2;
         }
-        if (current_button->getState() == Press)
+        if (current_button->getState() == NodePress)
         {
             y += 2;
         }
@@ -230,7 +232,9 @@ void UIItem::dealEvent(BP_Event& e)
                 {
                     leftup_index_ += item_each_line_;
                     if (leftup_index_ <= max_leftup_)
-                    { active_child_ = item_each_line_ * (line_count_ - 1); }
+                    {
+                        active_child_ = item_each_line_ * (line_count_ - 1);
+                    }
                 }
                 break;
             case BPK_UP:
@@ -263,7 +267,7 @@ void UIItem::dealEvent(BP_Event& e)
             forceActiveChild();
         }
         title_->setDealEvent(0);
-        title_->setAllChildState(Normal);
+        title_->setAllChildState(NodeNormal);
     }
     if (focus_ == 0)
     {
@@ -273,6 +277,67 @@ void UIItem::dealEvent(BP_Event& e)
             focus_ = 1;
         }
     }
+    if (e.type == BP_CONTROLLERBUTTONDOWN)
+    {
+        title_->setDealEvent(1);
+        switch (e.cbutton.button)
+        {
+        case BP_CONTROLLER_BUTTON_DPAD_LEFT:
+            if (active_child_ > 0)
+            {
+                active_child_--;
+            }
+            else
+            {
+                if (leftup_index_ > 0)
+                {
+                    leftup_index_ -= item_each_line_;
+                    active_child_ = item_each_line_ - 1;
+                }
+            }
+            break;
+        case BP_CONTROLLER_BUTTON_DPAD_RIGHT:
+            if (active_child_ < item_each_line_ * line_count_ - 1)
+            {
+                active_child_++;
+            }
+            else
+            {
+                leftup_index_ += item_each_line_;
+                if (leftup_index_ <= max_leftup_)
+                {
+                    active_child_ = item_each_line_ * (line_count_ - 1);
+                }
+            }
+            break;
+        case BP_CONTROLLER_BUTTON_DPAD_UP:
+            if (active_child_ < item_each_line_ && leftup_index_ == 0)
+            {
+            }
+            else if (active_child_ < item_each_line_)
+            {
+                leftup_index_ -= item_each_line_;
+            }
+            else
+            {
+                active_child_ -= item_each_line_;
+            }
+            break;
+        case BP_CONTROLLER_BUTTON_DPAD_DOWN:
+            if (active_child_ < item_each_line_ * (line_count_ - 1))
+            {
+                active_child_ += item_each_line_;
+            }
+            else
+            {
+                leftup_index_ += item_each_line_;
+            }
+            break;
+        default:
+            break;
+        }
+        forceActiveChild();
+    }
 }
 
 void UIItem::showItemProperty(Item* item)
@@ -281,13 +346,14 @@ void UIItem::showItemProperty(Item* item)
     {
         return;
     }
-    //物品名和数量    
+    //物品名和数量
     Font::getInstance()->draw(item->Name, 24, x_ + 10, y_ + 370, { 255, 255, 255, 255 });
     Font::getInstance()->draw(std::to_string(Save::getInstance()->getItemCountInBag(current_item_->ID)), 24, x_ + 260, y_ + 370, { 255, 255, 255, 255 });
     Font::getInstance()->draw(item->Introduction, 20, x_ + 10, y_ + 400, { 255, 255, 255, 255 });
 
     int x = 10, y = 430;
     int size = 20;
+    int l;
 
     //以下显示物品的属性
     BP_Color c = { 255, 215, 0, 255 };
@@ -297,8 +363,9 @@ void UIItem::showItemProperty(Item* item)
     {
         int man_x, man_y;
         MainScene::getInstance()->getManPosition(man_x, man_y);
-        auto str = fmt::format("當前坐標 {}, {}", man_x, man_y);
-        showOneProperty(1, str, size, c, x, y);
+        auto str = fmt1::format("當前坐標 {}, {}", man_x, man_y);
+        addOneProperty(str, 1);
+        y = showAddedProperty(size, c, x, y);
     }
 
     //剧情物品不继续显示了
@@ -310,42 +377,42 @@ void UIItem::showItemProperty(Item* item)
     //Font::getInstance()->draw("效果：", size, x_ + x, y_ + y, c);
     //y += size + 10;
 
-    showOneProperty(item->AddHP, "生命{:+}", size, c, x, y);
-    showOneProperty(item->AddMaxHP, "生命上限{:+}", size, c, x, y);
-    showOneProperty(item->AddMP, "內力{:+}", size, c, x, y);
-    showOneProperty(item->AddMaxMP, "內力上限{:+}", size, c, x, y);
-    showOneProperty(item->AddPhysicalPower, "體力{:+}", size, c, x, y);
-    showOneProperty(item->AddPoison, "中毒{:+}", size, c, x, y);
+    addOneProperty("生命{:+}", item->AddHP);
+    addOneProperty("生命上限{:+}", item->AddMaxHP);
+    addOneProperty("內力{:+}", item->AddMP);
+    addOneProperty("內力上限{:+}", item->AddMaxMP);
+    addOneProperty("體力{:+}", item->AddPhysicalPower);
+    addOneProperty("中毒{:+}", item->AddPoison);
 
-    showOneProperty(item->AddAttack, "攻擊{:+}", size, c, x, y);
-    showOneProperty(item->AddSpeed, "輕功{:+}", size, c, x, y);
-    showOneProperty(item->AddDefence, "防禦{:+}", size, c, x, y);
+    addOneProperty("攻擊{:+}", item->AddAttack);
+    addOneProperty("輕功{:+}", item->AddSpeed);
+    addOneProperty("防禦{:+}", item->AddDefence);
 
-    showOneProperty(item->AddMedicine, "醫療{:+}", size, c, x, y);
-    showOneProperty(item->AddUsePoison, "用毒{:+}", size, c, x, y);
-    showOneProperty(item->AddDetoxification, "解毒{:+}", size, c, x, y);
-    showOneProperty(item->AddAntiPoison, "抗毒{:+}", size, c, x, y);
+    addOneProperty("醫療{:+}", item->AddMedicine);
+    addOneProperty("用毒{:+}", item->AddUsePoison);
+    addOneProperty("解毒{:+}", item->AddDetoxification);
+    addOneProperty("抗毒{:+}", item->AddAntiPoison);
 
-    showOneProperty(item->AddFist, "拳掌{:+}", size, c, x, y);
-    showOneProperty(item->AddSword, "御劍{:+}", size, c, x, y);
-    showOneProperty(item->AddKnife, "耍刀{:+}", size, c, x, y);
-    showOneProperty(item->AddUnusual, "特殊兵器{:+}", size, c, x, y);
-    showOneProperty(item->AddHiddenWeapon, "暗器{:+}", size, c, x, y);
+    addOneProperty("拳掌{:+}", item->AddFist);
+    addOneProperty("御劍{:+}", item->AddSword);
+    addOneProperty("耍刀{:+}", item->AddKnife);
+    addOneProperty("特殊兵器{:+}", item->AddUnusual);
+    addOneProperty("暗器{:+}", item->AddHiddenWeapon);
 
-    showOneProperty(item->AddKnowledge, "作弊{:+}", size, c, x, y);
-    showOneProperty(item->AddMorality, "道德{:+}", size, c, x, y);
-    showOneProperty(item->AddAttackWithPoison, "攻擊帶毒{:+}", size, c, x, y);
+    addOneProperty("作弊{:+}", item->AddKnowledge);
+    addOneProperty("道德{:+}", item->AddMorality);
+    addOneProperty("攻擊帶毒{:+}", item->AddAttackWithPoison);
 
-    showOneProperty(int(item->ChangeMPType == 2), "內力調和{}", size, c, x, y);
-    showOneProperty(int(item->AddAttackTwice == 1), "雙擊{}", size, c, x, y);
+    addOneProperty("內力調和", int(item->ChangeMPType == 2));
+    addOneProperty("雙擊", int(item->AddAttackTwice == 1));
 
     auto magic = Save::getInstance()->getMagic(item->MagicID);
     if (magic)
     {
-        auto str = fmt::format("習得武學{}", magic->Name);
-        showOneProperty(1, str, size, c, x, y);
+        auto str = fmt1::format("習得武學{}", magic->Name);
+        addOneProperty(str, 1);
     }
-
+    l = showAddedProperty(size, c, x, y);
     //以下显示物品需求
 
     //药品和暗器类不继续显示了
@@ -354,46 +421,55 @@ void UIItem::showItemProperty(Item* item)
         return;
     }
 
-    x = 10;
-    y += size + 10;    //换行
+    y += l * size + 10;    //换行
     c = { 224, 170, 255, 255 };
     //Font::getInstance()->draw("需求：", size, x_ + x, y_ + y, c);
     //y += size + 10;
     auto role = Save::getInstance()->getRole(item->OnlySuitableRole);
     if (role)
     {
-        auto str = fmt::format("僅適合{}", role->Name);
-        showOneProperty(1, str, size, c, x, y);
-        return;
+        auto str = fmt1::format("僅適合{}", role->Name);
+        addOneProperty(str, 1);
     }
 
-    showOneProperty(item->NeedMP, "內力{}", size, c, x, y);
-    showOneProperty(item->NeedAttack, "攻擊{}", size, c, x, y);
-    showOneProperty(item->NeedSpeed, "輕功{}", size, c, x, y);
+    addOneProperty("內力{}", item->NeedMP);
+    addOneProperty("攻擊{}", item->NeedAttack);
+    addOneProperty("輕功{}", item->NeedSpeed);
 
-    showOneProperty(item->NeedMedicine, "醫療{}", size, c, x, y);
-    showOneProperty(item->NeedUsePoison, "用毒{}", size, c, x, y);
-    showOneProperty(item->NeedDetoxification, "解毒{}", size, c, x, y);
+    addOneProperty("醫療{}", item->NeedMedicine);
+    addOneProperty("用毒{}", item->NeedUsePoison);
+    addOneProperty("解毒{}", item->NeedDetoxification);
 
-    showOneProperty(item->NeedFist, "拳掌{}", size, c, x, y);
-    showOneProperty(item->NeedSword, "御劍{}", size, c, x, y);
-    showOneProperty(item->NeedKnife, "耍刀{}", size, c, x, y);
-    showOneProperty(item->NeedUnusual, "特殊兵器{}", size, c, x, y);
-    showOneProperty(item->NeedHiddenWeapon, "暗器{}", size, c, x, y);
+    addOneProperty("拳掌{}", item->NeedFist);
+    addOneProperty("御劍{}", item->NeedSword);
+    addOneProperty("耍刀{}", item->NeedKnife);
+    addOneProperty("特殊兵器{}", item->NeedUnusual);
+    addOneProperty("暗器{}", item->NeedHiddenWeapon);
 
-    showOneProperty(item->NeedIQ, "資質{}", size, c, x, y);
+    addOneProperty("資質{}", item->NeedIQ);
 
-    showOneProperty(item->NeedExp, "基礎經驗{}", size, c, x, y);
+    if (item->NeedMPType == 0)
+    {
+        addOneProperty("陰性內力");
+    }
+    if (item->NeedMPType == 1)
+    {
+        addOneProperty("陽性內力");
+    }
+
+    addOneProperty("基礎經驗{}", item->NeedExp);
 
     if (item->NeedMaterial >= 0)
     {
         std::string str = "耗費";
         str += Save::getInstance()->getItem(item->NeedMaterial)->Name;
-        showOneProperty(1, str, size, c, x, y);
+        addOneProperty(str, 1);
     }
 
-    x = 10;
-    y += size + 10;
+    l = showAddedProperty(size, c, x, y);
+
+    y += l * size + 10;
+    c = { 51, 250, 255, 255 };
     for (int i = 0; i < 5; i++)
     {
         int make = item->MakeItem[i];
@@ -401,37 +477,44 @@ void UIItem::showItemProperty(Item* item)
         {
             std::string str = Save::getInstance()->getItem(make)->Name;
             //str += " %d";
-            showOneProperty(item->MakeItemCount[i], str, size, c, x, y);
+            addOneProperty(str, item->MakeItemCount[i]);
         }
     }
+    showAddedProperty(size, c, x, y);
 }
 
-void UIItem::showOneProperty(int v, std::string format_str, int size, BP_Color c, int& x, int& y)
+void UIItem::addOneProperty(const std::string& format_str, int v)
 {
     if (v != 0)
     {
-        std::string str;
-        //int parameter_count = convert::extractFormatString(format_str).size();
-        //if (parameter_count == 1)
-        //{
-        //    str = fmt::format(format_str.c_str(), v);
-        //}
-        //else if (parameter_count==0)
-        //{
-        //    str = format_str;
-        //}
-        str = fmt::format(format_str.c_str(), v);
-        //测试是不是出界了
+        properties_.push_back(fmt1::format(format_str.c_str(), v));
+    }
+}
+
+void UIItem::addOneProperty(const std::string& format_str)
+{
+    properties_.push_back(format_str);
+}
+
+//返回值为行数
+int UIItem::showAddedProperty(int size, BP_Color c, int x, int y)
+{
+    int line = 1;
+    for (auto& str : properties_)
+    {
         int draw_length = size * Font::getTextDrawSize(str) / 2 + size;
         int x1 = x + draw_length;
         if (x1 > 700)
         {
             x = 10;
             y += size + 5;
+            line++;
         }
         Font::getInstance()->draw(str, size, x_ + x, y_ + y, c);
         x += draw_length;
     }
+    properties_.clear();
+    return line;
 }
 
 void UIItem::onPressedOK()
@@ -440,7 +523,7 @@ void UIItem::onPressedOK()
     for (int i = 0; i < item_buttons_.size(); i++)
     {
         auto button = item_buttons_[i];
-        if (button->getState() == Press)
+        if (button->getState() == NodePress)
         {
             auto item = getAvailableItem(i + leftup_index_);
             current_item_ = item;
@@ -464,15 +547,15 @@ void UIItem::onPressedOK()
         {
             auto team_menu = std::make_shared<TeamMenu>();
             team_menu->setItem(current_item_);
-            team_menu->setText(fmt::format("誰要使用{}", current_item_->Name));
+            team_menu->setText(fmt1::format("誰要使用{}", current_item_->Name));
             team_menu->run();
             auto role = team_menu->getRole();
             if (role)
             {
                 Role r = *role;
-                GameUtil::useItem(role, current_item_);
+                role->useItem(current_item_);
                 auto df = std::make_shared<ShowRoleDifference>(&r, role);
-                df->setText(fmt::format("{}服用{}", role->Name, current_item_->Name));
+                df->setText(fmt1::format("{}服用{}", role->Name, current_item_->Name));
                 df->run();
                 Event::getInstance()->addItemWithoutHint(current_item_->ID, -1);
             }
@@ -486,12 +569,12 @@ void UIItem::onPressedOK()
             {
                 format_str = "誰要裝備{}";
             }
-            team_menu->setText(fmt::format(format_str, current_item_->Name));
+            team_menu->setText(fmt1::format(format_str, current_item_->Name));
             team_menu->run();
             auto role = team_menu->getRole();
             if (role)
             {
-                GameUtil::equip(role, current_item_);
+                role->equip(current_item_);
             }
         }
         else if (current_item_->ItemType == 4)

@@ -1,7 +1,7 @@
 #include "Event.h"
 #include "Audio.h"
 #include "BattleScene.h"
-#include "File.h"
+#include "BattleSceneHades.h"
 #include "Font.h"
 #include "GameUtil.h"
 #include "GrpIdxFile.h"
@@ -13,7 +13,8 @@
 #include "SubScene.h"
 #include "Talk.h"
 #include "UIShop.h"
-#include "convert.h"
+#include "filefunc.h"
+#include "strfunc.h"
 
 Event::Event()
 {
@@ -32,6 +33,7 @@ Event::Event()
     text_box_ = std::make_shared<TextBox>();
     text_box_->setPosition(400, 200);
     text_box_->setTextPosition(-20, 100);
+    event_node_ = std::make_shared<DrawNode>();
 }
 
 Event::~Event()
@@ -41,7 +43,7 @@ Event::~Event()
 bool Event::loadEventData()
 {
     //读取talk
-    auto talk = GrpIdxFile::getIdxContent("../game/resource/talk.idx", "../game/resource/talk.grp", &offset, &length);
+    auto talk = GrpIdxFile::getIdxContent(GameUtil::PATH() + "resource/talk.idx", GameUtil::PATH() + "resource/talk.grp", &offset, &length);
     for (int i = 0; i < offset.back(); i++)
     {
         if (talk[i])
@@ -51,11 +53,11 @@ bool Event::loadEventData()
     }
     for (int i = 0; i < length.size(); i++)
     {
-        std::string str = convert::replaceAllSubString(PotConv::cp950toutf8(talk.data() + offset[i]), "*", "");
+        std::string str = strfunc::replaceAllSubString(PotConv::cp950toutf8(talk.data() + offset[i]), "*", "");
         talk_contents_.push_back(str);
     }
     //读取事件，全部转为整型
-    auto kdef = GrpIdxFile::getIdxContent("../game/resource/kdef.idx", "../game/resource/kdef.grp", &offset, &length);
+    auto kdef = GrpIdxFile::getIdxContent(GameUtil::PATH() + "resource/kdef.idx", GameUtil::PATH() + "resource/kdef.grp", &offset, &length);
     kdef_.resize(length.size());
     for (int i = 0; i < length.size(); i++)
     {
@@ -67,8 +69,8 @@ bool Event::loadEventData()
     }
 
     //读取离队列表
-    std::string leave_txt = convert::readStringFromFile("../game/list/leave.txt");
-    convert::findNumbers(leave_txt, &leave_event_id_);
+    std::string leave_txt = strfunc::readStringFromFile(GameUtil::PATH() + "list/leave.txt");
+    strfunc::findNumbers(leave_txt, &leave_event_id_);
     if (leave_event_id_.size() > 0)
     {
         leave_event_0_ = leave_event_id_[0];
@@ -81,7 +83,11 @@ bool Event::loadEventData()
 bool Event::callEvent(int event_id, RunNode* subscene, int supmap_id, int item_id, int event_index, int x, int y)
 {
     bool ret = true;
-    if (event_id <= 0 || event_id >= kdef_.size()) { return false; }
+    if (use_script_ == 0
+        && (event_id <= 0 || event_id >= kdef_.size()))
+    {
+        return false;
+    }
     subscene_ = dynamic_cast<SubScene*>(subscene);
     submap_id_ = -1;
     if (subscene)
@@ -94,37 +100,43 @@ bool Event::callEvent(int event_id, RunNode* subscene, int supmap_id, int item_i
     x_ = x;
     y_ = y;
 
-    //将节点加载到绘图栈的最上，这样两个对话可以画出来
+    //将节点加载到绘图栈的最上
+    RunNode::addIntoDrawTop(event_node_);
+
     talk_box_->setExit(false);
     talk_box_->setVisible(true);
     RunNode::addIntoDrawTop(talk_box_);
     int p = 0;
     exit_ = false;
     int i = 0;
-    auto e = kdef_[event_id];
-
-    fmt::print("Event {}: {}\n ", event_id, e);
-    e.resize(e.size() + 20, -1);    //后面的是缓冲区，避免出错
 
     //这些宏仅为了在事件程序中简化代码，不要用在其他地方
 #define REGISTER_INSTRUCT(code, function) \
     { \
     case (code): \
-        fmt::print("{} ", #function); \
+        fmt1::print("{} ", #function); \
         runner(&Event::function, this, e, i); \
         break; \
     }
 
     if (use_script_)
     {
-        auto script = fmt::format("../game/script/oldevent/oldevent_{}.lua", event_id);
+        auto script = fmt1::format(GameUtil::PATH() + "script/event/ka{}.lua", event_id);
+        if (!filefunc::fileExist(script))
+        {
+            script = fmt1::format(GameUtil::PATH() + "script/oldevent/oldevent_{}.lua", event_id);
+        }
+        fmt1::print("Event {}: {}\n ", event_id, script);
         ret = Script::getInstance()->runScript(script) == 0;
     }
     else
     {
+        auto e = kdef_[event_id];
+        fmt1::print("Event {}: {}\n ", event_id, e);
+        e.resize(e.size() + 20, -1);    //后面的是缓冲区，避免出错
         while (i < e.size() && !exit_)
         {
-            fmt::print("instruct {}\n", e[i]);
+            fmt1::print("instruct {}\n", e[i]);
             switch (e[i])
             {
                 REGISTER_INSTRUCT(-1, forceExit);
@@ -135,7 +147,7 @@ bool Event::callEvent(int event_id, RunNode* subscene, int supmap_id, int item_i
                 REGISTER_INSTRUCT(4, isUsingItem);
                 REGISTER_INSTRUCT(5, askBattle);
             case 6:
-                fmt::print("{}: {}, {}, {}, {}\n", "tryBattle", e[i + 1], e[i + 2], e[i + 3], e[i + 4]);
+                fmt1::print("{}: {}, {}, {}, {}\n", "tryBattle", e[i + 1], e[i + 2], e[i + 3], e[i + 4]);
                 if (tryBattle(e[i + 1], e[i + 4]))
                 {
                     i += e[i + 2];
@@ -215,7 +227,7 @@ bool Event::callEvent(int event_id, RunNode* subscene, int supmap_id, int item_i
             case 50:
                 if (e[i + 1] > 128)
                 {
-                    fmt::print("{}\n", "checkHave5Item");
+                    fmt1::print("{}\n", "checkHave5Item");
                     if (checkHave5Item(e[i + 1], e[i + 2], e[i + 3], e[i + 4], e[i + 5]))
                     {
                         i += e[i + 6];
@@ -241,6 +253,10 @@ bool Event::callEvent(int event_id, RunNode* subscene, int supmap_id, int item_i
     }
     RunNode::removeFromDraw(talk_box_);
     clearTalkBox();
+
+    RunNode::removeFromDraw(event_node_);
+    event_node_->clear();
+
     if (subscene_)
     {
         subscene_->forceManPic(-1);
@@ -287,13 +303,13 @@ void Event::forceExit()
 void Event::setUseScript(int u)
 {
     use_script_ = u;
-    if (u)
-    {
-        auto str = convert::readStringFromFile("../game/script/talk.txt");
-        convert::replaceAllSubStringRef(str, "\r", "");
-        convert::replaceAllSubStringRef(str, "*", "");
-        talk_contents_ = convert::splitString(str, "\n");
-    }
+    //if (u)
+    //{
+    //    auto str = strfunc::readStringFromFile(GameUtil::PATH()+"script/talk.txt");
+    //    strfunc::replaceAllSubStringRef(str, "\r", "");
+    //    strfunc::replaceAllSubStringRef(str, "*", "");
+    //    talk_contents_ = strfunc::splitString(str, "\n");
+    //}
 }
 
 //原对话指令
@@ -303,13 +319,23 @@ void Event::oldTalk(int talk_id, int head_id, int style)
     {
         return;
     }
+    auto talk_content = talk_contents_[talk_id];
+    newTalk(talk_content, head_id, style);
+}
+
+void Event::newTalk(const std::string& talk_content, int head_id, int style)
+{
     auto talk = talk_box_up_;
     if (style % 2 != 0)
     {
         talk = talk_box_down_;
     }
-    talk->setContent(talk_contents_[talk_id]);
-    fmt::print(talk_contents_[talk_id] + "\n");
+
+    talk->setContent(talk_content);
+    if (use_script_ == 0)
+    {
+        fmt1::print("head {} style {}: {}\n", head_id, style, talk_content);
+    }
     talk->setHeadID(head_id);
     if (style == 2 || style == 3)
     {
@@ -330,7 +356,7 @@ void Event::oldTalk(int talk_id, int head_id, int style)
 void Event::addItem(int item_id, int count)
 {
     addItemWithoutHint(item_id, count);
-    text_box_->setText(fmt::format("獲得{}{}", Save::getInstance()->getItem(item_id)->Name, count));
+    text_box_->setText(fmt1::format("獲得{}{}", Save::getInstance()->getItem(item_id)->Name, count));
     text_box_->setTexture("item", item_id);
     text_box_->run();
     text_box_->setTexture("item", -1);
@@ -373,13 +399,27 @@ bool Event::askBattle()
 
 bool Event::tryBattle(int battle_id, int get_exp)
 {
-    auto battle = std::make_shared<BattleScene>();
-    battle->setID(battle_id);
-    battle->setHaveFailExp(get_exp);
-    int result = battle->run();
-    //int result = 0;    //测试用
+    int result = 0;
+    int style = GameUtil::getInstance()->getInt("game", "semi_real");
+    if (style == 0 || style == 1)
+    {
+        auto battle = std::make_shared<BattleScene>();
+        battle->setID(battle_id);
+        battle->setHaveFailExp(get_exp);
+        result = battle->run();
+    }
+    else if (style == 2)
+    {
+        auto battle = std::make_shared<BattleSceneHades>();
+        battle->setID(battle_id);
+        //battle->setHaveFailExp(get_exp);
+        result = battle->run();
+    }
+    else if (style == 3)
+    {
+        result = 0;    //直接判断为胜利，用于调试
+    }
     clearTalkBox();
-
     return result == 0;
 }
 
@@ -462,6 +502,7 @@ void Event::darkScence()
 
 void Event::dead()
 {
+    menu2_->setText("勝敗乃兵家常事");
     RunNode::exitAll(1);
     forceExit();
 }
@@ -696,7 +737,7 @@ void Event::oldLearnMagic(int role_id, int magic_id, int no_display)
     auto m = Save::getInstance()->getMagic(magic_id);
     r->learnMagic(m);
     if (no_display) { return; }
-    text_box_->setText(fmt::format("{}習得武學{}", r->Name, m->Name));
+    text_box_->setText(fmt1::format("{}習得武學{}", r->Name, m->Name));
     text_box_->run();
 }
 
@@ -705,7 +746,7 @@ void Event::addIQ(int role_id, int value)
     auto r = Save::getInstance()->getRole(role_id);
     auto v0 = r->IQ;
     r->IQ = GameUtil::limit(v0 + value, 0, Role::getMaxValue()->IQ);
-    text_box_->setText(fmt::format("{}資質增加{}", r->Name, r->IQ - v0));
+    text_box_->setText(fmt1::format("{}資質增加{}", r->Name, r->IQ - v0));
     text_box_->run();
 }
 
@@ -875,7 +916,7 @@ void Event::addSpeed(int role_id, int value)
     auto r = Save::getInstance()->getRole(role_id);
     auto v0 = r->Speed;
     r->Speed = GameUtil::limit(v0 + value, 0, Role::getMaxValue()->Speed);
-    text_box_->setText(fmt::format("{}輕功增加{}", r->Name, r->Speed - v0));
+    text_box_->setText(fmt1::format("{}輕功增加{}", r->Name, r->Speed - v0));
     text_box_->run();
 }
 
@@ -884,7 +925,8 @@ void Event::addMaxMP(int role_id, int value)
     auto r = Save::getInstance()->getRole(role_id);
     auto v0 = r->MaxMP;
     r->MaxMP = GameUtil::limit(v0 + value, 0, Role::getMaxValue()->MP);
-    text_box_->setText(fmt::format("{}內力增加{}", r->Name, r->MaxMP - v0));
+    r->MP = GameUtil::limit( r->MP + value, 0, Role::getMaxValue()->MaxMP);
+    text_box_->setText(fmt1::format("{}內力增加{}", r->Name, r->MaxMP - v0));
     text_box_->run();
 }
 
@@ -893,7 +935,7 @@ void Event::addAttack(int role_id, int value)
     auto r = Save::getInstance()->getRole(role_id);
     auto v0 = r->Attack;
     r->Attack = GameUtil::limit(v0 + value, 0, Role::getMaxValue()->Attack);
-    text_box_->setText(fmt::format("{}武力增加{}", r->Name, r->Attack - v0));
+    text_box_->setText(fmt1::format("{}武力增加{}", r->Name, r->Attack - v0));
     text_box_->run();
 }
 
@@ -902,7 +944,8 @@ void Event::addMaxHP(int role_id, int value)
     auto r = Save::getInstance()->getRole(role_id);
     auto v0 = r->MaxHP;
     r->MaxHP = GameUtil::limit(v0 + value, 0, Role::getMaxValue()->HP);
-    text_box_->setText(fmt::format("{}生命增加{}", r->Name, r->MaxHP - v0));
+    r->HP = GameUtil::limit( r->HP + value, 0, Role::getMaxValue()->MaxHP);
+    text_box_->setText(fmt1::format("{}生命增加{}", r->Name, r->MaxHP - v0));
     text_box_->run();
 }
 
@@ -924,13 +967,13 @@ void Event::askSoftStar()
 
 void Event::showMorality()
 {
-    text_box_->setText(fmt::format("你的道德指數為{}", Save::getInstance()->getRole(0)->Morality));
+    text_box_->setText(fmt1::format("你的道德指數為{}", Save::getInstance()->getRole(0)->Morality));
     text_box_->run();
 }
 
 void Event::showFame()
 {
-    text_box_->setText(fmt::format("你的聲望指數為{}", Save::getInstance()->getRole(0)->Fame));
+    text_box_->setText(fmt1::format("你的聲望指數為{}", Save::getInstance()->getRole(0)->Fame));
     text_box_->run();
 }
 
@@ -973,11 +1016,7 @@ void Event::breakStoneGate()
 //武林大会
 void Event::fightForTop()
 {
-    std::vector<int> heads =
-    {
-        8, 21, 23, 31, 32, 43, 7, 11, 14, 20, 33, 34, 10, 12, 19,
-        22, 56, 68, 13, 55, 62, 67, 70, 71, 26, 57, 60, 64, 3, 69
-    };
+    std::vector<int> heads{ 8, 21, 23, 31, 32, 43, 7, 11, 14, 20, 33, 34, 10, 12, 19, 22, 56, 68, 13, 55, 62, 67, 70, 71, 26, 57, 60, 64, 3, 69 };
 
     for (int i = 0; i < 15; i++)
     {
@@ -1113,7 +1152,7 @@ void Event::clearTalkBox()
 
 //50扩展指令
 //虽然有一定程度的支持，但是这不表示推荐使用
-void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e6, int* code_ptr)
+void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e6, int* code_ptr, int* code_value)
 {
     int index = 0, len = 0, offset = 0;
     char *char_ptr = nullptr, *char_ptr1 = nullptr;
@@ -1132,13 +1171,13 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
         break;
     case 1:    //数组赋值，e2不为0表示仅要一个字节
         index = e3 + e_GetValue(0, e1, e4);
-        x50[index] = e_GetValue(1, e1, e4);
-        if (e2) { x50[index] = x50[index] & 0xff; }
+        x50[index] = e_GetValue(1, e1, e5);
+        if (e2) { x50[index] = x50[index] & 0x000000ff; }
         break;
     case 2:    //数组取值
         index = e3 + e_GetValue(0, e1, e4);
         x50[e5] = x50[index];
-        if (e2) { x50[index] = x50[index] & 0xff; }
+        if (e2) { x50[index] = x50[index] & 0x000000ff; }
         break;
     case 3:    //基本运算
         index = e_GetValue(0, e1, e5);
@@ -1192,6 +1231,7 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
             break;
         case 7:
             x50[0x7000] = 1;
+            break;
         }
         break;
     case 5:    //全部清零
@@ -1211,8 +1251,7 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
         sprintf(char_ptr, char_ptr1, e4);
         break;
     case 10:    //字串长度
-        //感觉这样有问题，不管了
-        x50[e2] = strlen((char*)&x50[e1]);
+        x50[e2] = Font::getTextDrawSize((char*)&x50[e1]);
         break;
     case 11:    //合并字串
         char_ptr = (char*)&x50[e1];
@@ -1237,6 +1276,7 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
         e3 = e_GetValue(0, e1, e3);
         e4 = e_GetValue(1, e1, e4);
         e5 = e_GetValue(2, e1, e5);
+        e4 *= 2;
         save_int_ptr = nullptr;
         switch (e2)
         {
@@ -1251,6 +1291,7 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
     case 17:    //读存档数据
         e3 = e_GetValue(0, e1, e3);
         e4 = e_GetValue(1, e1, e4);
+        e4 *= 2;
         switch (e2)
         {
         case 0: x50[e5] = *(int*)((char*)(save->getRole(e3)) + e4); break;
@@ -1326,26 +1367,35 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
     case 31: break;
     case 32:    //修改下一条指令
         e3 = e_GetValue(0, e1, e3);
-        *(code_ptr + e3) = x50[e2];
+        if (use_script_ == 0)
+        {
+            *(code_ptr + e3) = x50[e2];
+        }
+        else
+        {
+            *code_ptr = e3;
+            *code_value = x50[e2];
+        }
         break;
     case 33:    //画一个字串
         e3 = e_GetValue(0, e1, e3);
         e4 = e_GetValue(1, e1, e4);
         e5 = e_GetValue(2, e1, e5);
         char_ptr = (char*)&x50[e2];
-        Font::getInstance()->draw(char_ptr, 20, e3, e4 /*BP_Color(e5)*/);
+        event_node_->Infos.emplace_back(DrawNode::Info{ 0, e3, e4, char_ptr });
         break;
-    case 34:    //画一个背景框
+    case 34:    //画一个背景框，废弃
         e2 = e_GetValue(0, e1, e2);
         e3 = e_GetValue(1, e1, e3);
         e4 = e_GetValue(2, e1, e4);
         e5 = e_GetValue(3, e1, e5);
-        Engine::getInstance()->fillColor({ 0, 0, 0, 128 }, e2, e3, e4, e5);
+        //Engine::getInstance()->fillColor({ 0, 0, 0, 128 }, e2, e3, e4, e5);
         break;
     case 35:    //暂停等待按键
         text_box_->setText("");
         text_box_->setTexture("", 0);
         x50[e1] = text_box_->run();
+        event_node_->clear();
         switch (x50[e1])
         {
         case SDLK_LEFT: x50[e1] = 154; break;
@@ -1377,13 +1427,15 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
         e2 = e_GetValue(0, e1, e2);
         e5 = e_GetValue(1, e1, e5);
         e6 = e_GetValue(2, e1, e6);
-        for (int i = 0; i < e2 - 1; i++)
+        for (int i = 0; i < e2; i++)
         {
-            strs.push_back((char*)x50[x50[e3 + i]]);
+            char_ptr = (char*)&x50[x50[e3 + i]];
+            strs.push_back(std::to_string(i) + char_ptr);
         }
         auto menu = std::make_shared<MenuText>();
         menu->setStrings(strs);
-        x50[e4] = menu->run();
+        menu->setPosition(e5, e6);
+        x50[e4] = menu->run() + 1;
     }
     break;
     case 41:    //画一张图
@@ -1392,8 +1444,17 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
         e5 = e_GetValue(2, e1, e5);
         switch (e2)
         {
-        case 0: TextureManager::getInstance()->renderTexture("mmap", e5, e3, e4); break;
-        case 1: TextureManager::getInstance()->renderTexture("head", e5, e3, e4); break;
+        case 0:
+            if (submap_id_ < 0)
+            {
+                event_node_->Infos.emplace_back(DrawNode::Info{ 1, e3, e4, "mmap", e5 });
+            }
+            else
+            {
+                event_node_->Infos.emplace_back(DrawNode::Info{ 1, e3, e4, "smap", e5 });
+            }
+            break;
+        case 1: event_node_->Infos.emplace_back(DrawNode::Info{ 1, e3, e4, "head", e5 }); break;
         }
         break;
     case 42:    //改变主地图坐标
@@ -1434,7 +1495,7 @@ void Event::instruct_50e(int code, int e1, int e2, int e3, int e4, int e5, int e
     case 48:    //自己调试吧，懒得管
         for (int i = e1; i < e1 + e2 - 1; i++)
         {
-            fmt::print("x50[%d]=%d\n", i, x50[i]);
+            fmt1::print("x50[%d]=%d\n", i, x50[i]);
         }
         break;
     case 49: break;

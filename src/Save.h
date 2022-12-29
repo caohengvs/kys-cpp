@@ -7,7 +7,7 @@
 
 struct ItemList
 {
-    int item_id, count;
+    int item_id = -1, count = 0;
 };
 
 class Save
@@ -141,11 +141,12 @@ public:
     Item* getItemByBagIndex(int i);
     int getItemCountByBagIndex(int i);
     int getItemCountInBag(Item* item);
+    std::vector<std::tuple<Item*, int>> getAvailableEquipItems();
 
     int getItemCountInBag(int item_id);
     int getMoneyCountInBag();
 
-    void makeMaps();
+    void makeMapsAndRepairID();
 
     Role* getRoleByName(std::string name) { return roles_by_name_[name]; }
     Magic* getMagicByName(std::string name) { return magics_by_name_[name]; }
@@ -202,11 +203,16 @@ public:
     };
 
 public:
-    void saveRToCSV(int num);
-    void loadRFromCSV(int num);
-    bool insertAt(const std::string& type, int idx);
+    //void saveRToCSV(int num);
+    //void loadRFromCSV(int num);
+    //bool insertAt(const std::string& type, int idx);
 
 public:
     void saveRToDB(int num);
     void loadRFromDB(int num);
+
+    void saveRToDB(sqlite3* db);
+    void loadRFromDB(sqlite3* db);
+
+    void runSql(const std::string& cmd);
 };

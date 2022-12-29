@@ -2,7 +2,7 @@
 #include "../others/Hanz2Piny.h"
 #include "OpenCCConverter.h"
 #include "PotConv.h"
-#include "convert.h"
+#include "strfunc.h"
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -18,12 +18,12 @@ SuperMenuText::SuperMenuText(const std::string& title, int font_size, const std:
     addChild(next_);
     selections_ = std::make_shared<MenuText>();
     addChild(selections_);
-    setAllChildState(Normal);
+    setAllChildState(NodeNormal);
     defaultPage();
 
     std::function<bool(const std::string&, const std::string&)> match = [&](const std::string& text, const std::string& name) -> bool
     {
-        std::string pinyin = Hanz2Piny::hanz2pinyin(PotConv::cp936toutf8(name));
+        std::string pinyin = Hanz2Piny::hanz2pinyin(name);
         int p = 0;
         for (int i = 0; i < text.size(); i++)
         {
@@ -42,7 +42,7 @@ SuperMenuText::SuperMenuText(const std::string& title, int font_size, const std:
         //// 拼音
         //auto u8Name = PotConv::cp936toutf8(pairName.second);
         //std::string pinyin = Hanz2Piny::hanz2pinyin(u8Name);
-        //auto pys = convert::splitString(pinyin, " ");
+        //auto pys = strfunc::splitString(pinyin, " ");
         //std::vector<std::string> acceptables;
 
         //std::function<void(const std::string& curStr, int idx)> comboGenerator = [&](const std::string& curStr, int idx)
@@ -102,7 +102,9 @@ void SuperMenuText::setMatchFunction(std::function<bool(const std::string&, cons
 void SuperMenuText::defaultPage()
 {
     if (curDefault_)
-    { return; }
+    {
+        return;
+    }
     std::vector<std::string> displays;
     searchResultIndices_.clear();
     for (int i = 0; i < items_.size(); i++)
@@ -118,7 +120,9 @@ void SuperMenuText::defaultPage()
     updateMaxPages();
     selections_->setStrings(displays);
     if (displays.size() != 0)
-    { selections_->forceActiveChild(0); }
+    {
+        selections_->forceActiveChild(0);
+    }
     curDefault_ = true;
 }
 
@@ -148,7 +152,9 @@ bool SuperMenuText::defaultMatch(const std::string& input, const std::string& na
     {
         auto iterName = iterInput->second.find(name);
         if (iterName != iterInput->second.end())
-        { return true; }
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -198,16 +204,16 @@ void SuperMenuText::dealEvent(BP_Event& e)
 {
     // get不到result 为何
     // 不知道这玩意儿在干嘛，瞎搞即可
-    if (previous_->getState() == Press && e.type == BP_MOUSEBUTTONUP)
+    if (previous_->getState() == NodePress && e.type == BP_MOUSEBUTTONUP)
     {
         flipPage(-1);
-        previous_->setState(Normal);
+        previous_->setState(NodeNormal);
         previous_->setResult(-1);
     }
-    else if (next_->getState() == Press && e.type == BP_MOUSEBUTTONUP)
+    else if (next_->getState() == NodePress && e.type == BP_MOUSEBUTTONUP)
     {
         flipPage(1);
-        next_->setState(Normal);
+        next_->setState(NodeNormal);
         next_->setResult(-1);
     }
 
@@ -217,7 +223,7 @@ void SuperMenuText::dealEvent(BP_Event& e)
     {
     case BP_TEXTINPUT:
     {
-        auto converted = OpenCCConverter::getInstance()->convertUTF8(e.text.text);
+        auto converted = OpenCCConverter::getInstance()->UTF8s2t(e.text.text);
         converted = PotConv::conv(converted, "utf-8", "cp936");
         text_ += converted;
         research = true;
@@ -306,7 +312,9 @@ void SuperMenuText::dealEvent(BP_Event& e)
         auto selected = selections_->getResultString();
         result_ = activeIndices_[selections_->getResult()];
         if (result_ >= 0)
-        { result_ = items_[result_].first; }
+        {
+            result_ = items_[result_].first;
+        }
         setExit(true);
     }
 }

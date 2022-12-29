@@ -2,18 +2,25 @@
 #include "Engine.h"
 #include <map>
 #include <string>
+#include <unordered_map>
+
+#include "GameUtil.h"
 
 class Font
 {
 private:
     Font();
 
-    std::string fontnamec_ = "../game/font/chinese.ttf";
-    std::string fontnamee_ = "../game/font/english.ttf";
+    std::string fontnamec_;
+    std::string fontnamee_;
 
     int stat_message_ = 0;
 
+    int simplified_ = 1;
+
     std::map<uint32_t, std::map<int, BP_Texture*>> buffer_;    //缓存画过的字体
+
+    std::unordered_map<std::string, std::string> t2s_buffer_;    //缓存繁体转简体的结果
 
 public:
     static Font* getInstance()
@@ -29,4 +36,5 @@ public:
     void clearBuffer();
     int getBufferSize();
     static int getTextDrawSize(const std::string& text);
+    void setSimplified(int s) { simplified_ = s; }
 };

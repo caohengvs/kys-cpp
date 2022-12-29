@@ -24,9 +24,9 @@ void InputBox::dealEvent(BP_Event& e)
     {
     case BP_TEXTINPUT:
     {
-        auto converted = OpenCCConverter::getInstance()->convertUTF8(e.text.text);
+        auto converted = OpenCCConverter::getInstance()->UTF8s2t(e.text.text);
         //converted = PotConv::conv(converted, "utf-8", "cp936");
-        //fmt::print("input %s\n", converted.c_str());
+        //fmt1::print("input %s\n", converted.c_str());
         text_ += converted;
         break;
     }
@@ -36,7 +36,7 @@ void InputBox::dealEvent(BP_Event& e)
         //auto composition = e.edit.text;
         //auto cursor = e.edit.start;
         //auto selection_len = e.edit.length;
-        //fmt::print("editing %s\n", e.edit.text);
+        //fmt1::print("editing %s\n", e.edit.text);
         break;
     }
     case BP_KEYDOWN:

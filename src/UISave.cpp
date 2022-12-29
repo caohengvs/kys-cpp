@@ -1,18 +1,18 @@
 #include "UISave.h"
 #include "Event.h"
-#include "File.h"
 #include "MainScene.h"
 #include "Save.h"
 #include "SubScene.h"
 #include "UI.h"
-#include "convert.h"
+#include "filefunc.h"
+#include "strfunc.h"
 
 UISave::UISave()
 {
     std::vector<std::string> strings;
     auto get_save_time = [](int i) -> std::string
     {
-        auto str = File::getFileTime(Save::getFilename(i, 'r'));
+        auto str = filefunc::getFileTime(Save::getFilename(i, 'r'));
         if (str.empty())
         {
             str = "--------------------";
@@ -21,10 +21,10 @@ UISave::UISave()
     };
     for (int i = 0; i <= 10; i++)
     {
-        auto str = fmt::format("進度{:02}  {}", i, get_save_time(i));
+        auto str = fmt1::format("進度{:02}  {}", i, get_save_time(i));
         strings.push_back(str);
     }
-    auto str = fmt::format("自動檔  {}", get_save_time(AUTO_SAVE_ID));
+    auto str = fmt1::format("自動檔  {}", get_save_time(AUTO_SAVE_ID));
     strings.push_back(str);
     setStrings(strings);
     childs_[0]->setVisible(false);    //屏蔽进度0

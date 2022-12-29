@@ -2,7 +2,7 @@
 #include "Font.h"
 #include "Head.h"
 #include "TextBox.h"
-#include "convert.h"
+#include "strfunc.h"
 
 //这个类专用于显示两个Role的不同，供升级，吃药等显示前后比较
 //可以在属性变化前，以一临时对象记录，再比较前后的变化
@@ -41,7 +41,7 @@ private:
         auto p2 = *(T*)(diff + (char*)role2_);
         if (p1 != p2 || force)
         {
-            auto str = fmt::format(format_str.c_str(), p1, p2);
+            auto str = fmt1::format(format_str.c_str(), p1, p2);
             Font::getInstance()->draw(str, size, x, y, c);
             y += size + 5;
         }

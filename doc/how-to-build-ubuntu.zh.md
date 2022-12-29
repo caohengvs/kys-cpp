@@ -2,7 +2,7 @@
 本作支持 linux 32/64 bit 环境，以本机示范如何编译。
 
 ### 编译环境
-本机 OS 是 x86 ubuntu18.04，菜鸡配置，不需要显卡。注意本作需要 c++14。
+本机 OS 是 x86 ubuntu18.04，菜鸡配置，不需要显卡。注意本作需要 c++17。
 ```shell
 $ uname -a
 Linux BJ-DZ0103437 5.4.0-47-generic #51~18.04.1-Ubuntu SMP Sat Sep 5 14:35:50 UTC 2020 x86_64 x86_64 x86_64 GNU/Linux
@@ -14,6 +14,15 @@ This is free software; see the source for copying conditions.  There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 ```
 ### 基础依赖
+
+子模块
+```shell
+git submodule init
+git submodule update
+# 可选
+git submodule update --remote --rebase
+```
+
 这几个是 bass（播放语音用的） 运行依赖
 ```shell
 sudo apt-get install libgtkd-3-dev libglade2-dev
@@ -21,25 +30,32 @@ sudo apt-get install libgtkd-3-dev libglade2-dev
 
 以下是游戏本身依赖
 ```shell
-sudo apt-get install libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev liblua5.3-dev libminizip-dev libsdl2-dev 
-sudo apt-get install libopencc-dev
-sudo apt-get install libfmt-dev libsqlite3-dev
+sudo apt-get install libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev liblua5.3-dev libsdl2-dev libopencc-dev libzip-dev libsqlite3-dev libyaml-cpp-dev
 ```
 
-### 下载配置 bass/bassmini
+查看 sdl 版本
+```
+$ sdl-config --verion
+2.0.8
+```
 
-非必须，也可以使用sdl2-mixer代替。
+### 下载配置 bass 和 bassmidi
+
+> 非必须，也可以使用sdl2-mixer代替。
 
 www.un4seen.com 选 linux 版本下载、解压。
+* [点击下载 bass24](http://www.un4seen.com/download.php?bass24-linux)
+* [点击下载 bassmidi24](http://www.un4seen.com/files/bassmidi24-linux.zip)
 
-配置 bass so 和 .h 环境变量
+配置 bass so 和 .h 环境变量和 fmt1.h 路径
 ```shell
 export BASS_HOME=${自己的bass解压路径}
-export BASS_MIDI_HOME=${自己的bassmini解压路径}
+export BASS_MIDI_HOME=${自己的bassmidi解压路径}
 export CPATH=${BASS_HOME}:${BASS_MIDI_HOME}:${CPATH}
 export LD_LIBRARY_PATH=${BASS_HOME}:${BASS_MIDI_HOME}:${LD_LIBRARY_PATH}
+export export CPLUS_INCLUDE_PATH=${自己的kys-cpp路径}/nb:${CPLUS_INCLUDE_PATH}
 ```
-注意 64bit 机器要链接的是 x64 目录下面的 so，这个压缩包下面先放的是 32bit 用的 so。看
+注意 64bit 机器要链接的是 x64 目录下面的 so，这个压缩包下面先放的是 32bit 用的 so。`cp -rf x64/libbass.so libbass.so`覆盖掉即可。
 ```shell
 $ cd /home/tpoisonooo/GitProjects/bass/bass24-linux/x64
 $ file libbass.so 
@@ -50,14 +66,14 @@ $ file ../libbass.so
 ```
 
 ### build 和小改动
-
-1. git clone 下来项目，要获取 common
-```shell
-git clone https://github.com/scarsty/kys-cpp && cd kys-cpp
-chmod +x get-submodule.sh
-./get-submodule.sh
+```bash
+$ mkdir build
+$ cmake ../src && make
 ```
-2. 如果 cmake 版本过高
+
+* 如果提示找不到 SDL 的几个变量，例如 SDL_CONTROLLER xxx 。作者想支持手柄用了 sdl2.0.20 版本，ubuntu 目前没有现成的源。删掉对应代码即可。
+
+* 如果 cmake 版本过高
 ```shell
 $ cmake --version
 cmake version 3.10.2
@@ -66,15 +82,16 @@ CMake suite maintained and supported by Kitware (kitware.com/cmake).
 ```
 需要修改 src/CMakeLists.txt，增加一行`cmake_policy(SET CMP0015 OLD)`
 
-3. 大概率因为 fmt 版本问题，需要打开 `src/Audio.cpp`, 注释掉这 2 行：
+* 大概率因为 fmt 版本问题，需要打开 `src/Audio.cpp`, 注释掉这 2 行：
+若并没出现问题请跳过。
 ```c++
-10 fmt::print("Init Bass fault!\n");
+10 fmt1::print("Init Bass fault!\n");
 ```
 ```c++
-16 fmt::print("Mix_OpenAudio: {}\n", Mix_GetError());
+16 fmt1::print("Mix_OpenAudio: {}\n", Mix_GetError());
 ```
 
-4. 然后 cmake 编译 
+* 然后 cmake 编译 
 ```shell
 cd src
 mkdir build && cd build

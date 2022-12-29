@@ -1,14 +1,17 @@
 #include "MainScene.h"
+
+#include <Timer.h>
+#include <ctime>
+
 #include "Console.h"
-#include "File.h"
+#include "GameUtil.h"
 #include "Random.h"
 #include "Save.h"
 #include "SubScene.h"
 #include "TextureManager.h"
 #include "UI.h"
 #include "UISave.h"
-#include <ctime>
-//#include "Timer.h"
+#include "filefunc.h"
 
 MainScene::MainScene()
 {
@@ -27,11 +30,11 @@ MainScene::MainScene()
 
         int length = COORD_COUNT * COORD_COUNT * sizeof(MAP_INT);
 
-        File::readFile("../game/resource/earth.002", &earth_layer1.data(0), length);
-        File::readFile("../game/resource/surface.002", &surface_layer1.data(0), length);
-        File::readFile("../game/resource/building.002", &building_layer1.data(0), length);
-        File::readFile("../game/resource/buildx.002", &build_x_layer_.data(0), length);
-        File::readFile("../game/resource/buildy.002", &build_y_layer_.data(0), length);
+        filefunc::readFile(GameUtil::PATH() + "resource/earth.002", &earth_layer1.data(0), length);
+        filefunc::readFile(GameUtil::PATH() + "resource/surface.002", &surface_layer1.data(0), length);
+        filefunc::readFile(GameUtil::PATH() + "resource/building.002", &building_layer1.data(0), length);
+        filefunc::readFile(GameUtil::PATH() + "resource/buildx.002", &build_x_layer_.data(0), length);
+        filefunc::readFile(GameUtil::PATH() + "resource/buildy.002", &build_y_layer_.data(0), length);
 
         divide2(earth_layer1, earth_layer_);
         divide2(surface_layer1, surface_layer_);
@@ -46,10 +49,7 @@ MainScene::MainScene()
         cloud_vector_[i].initRand();
     }
     //getEntrance();
-    weather_ = std::make_shared<ParticleWeather>();
-    weather_->setRenderer(Engine::getInstance()->getRenderer());
-    weather_->setTexture(TextureManager::getInstance()->loadTexture("title", 201)->getTexture());
-    weather_->stopSystem();
+    weather_ = std::make_shared<ParticleExample>();
     addChild(weather_);
 }
 
@@ -64,7 +64,7 @@ void MainScene::divide2(MapSquareInt& m1, MapSquare<Object>& m)
         m1.data(i) /= 2;
         if (m1.data(i) > 0)
         {
-            m.data(i).tex_ = TextureManager::getInstance()->loadTexture("mmap", m1.data(i));
+            m.data(i).tex_ = TextureManager::getInstance()->getTexture("mmap", m1.data(i));
             auto pic = m1.data(i);
             auto& a = m.data(i);
             if (pic == 419 || pic >= 306 && pic <= 335)
@@ -160,7 +160,7 @@ void MainScene::draw()
                     }
                     int c = 1024 * (ix + iy) + ix;
                     //map[2 * c] = {2*c, man_pic_, p };
-                    building_vec[building_count++] = { 2 * c, TextureManager::getInstance()->loadTexture("mmap", man_pic_), p };
+                    building_vec[building_count++] = { 2 * c, TextureManager::getInstance()->getTexture("mmap", man_pic_), p };
                 }
             }
         }
@@ -188,7 +188,7 @@ void MainScene::draw()
     {
         c.draw();
     }
-    //fmt::print("%d buildings in %g s.\n", building_count, t1.getElapsedTime());
+    //fmt1::print("%d buildings in %g s.\n", building_count, t1.getElapsedTime());
     //Engine::getInstance()->setColor(Engine::getInstance()->getRenderAssistTexture(), { 227, 207, 87, 255 });
     Engine::getInstance()->renderAssistTextureToWindow();
 }
@@ -218,7 +218,7 @@ void MainScene::dealEvent(BP_Event& e)
     if (force_submap_ >= 0)
     {
         setVisible(true);
-        auto sub_map =  std::make_shared<SubScene>(force_submap_);
+        auto sub_map = std::make_shared<SubScene>(force_submap_);
         sub_map->setManViewPosition(force_submap_x_, force_submap_y_);
         sub_map->setTowards(towards_);
         sub_map->setForceBeginEvent(force_event_);
@@ -228,75 +228,104 @@ void MainScene::dealEvent(BP_Event& e)
         force_event_ = -1;
     }
 
-    int x = man_x_, y = man_y_;
-
-    //键盘走路部分，检测4个方向键
-    int pressed = 0;
-
     // Tab激活控制台
-    if (Engine::getInstance()->checkKeyPress(BPK_TAB))
+    if (e.type == BP_KEYUP && e.key.keysym.sym == BPK_TAB)
     {
         Console c;
     }
-
-    for (auto i = int(BPK_RIGHT); i <= int(BPK_UP); i++)
+    if ((e.type == BP_KEYUP && e.key.keysym.sym == BPK_ESCAPE)
+        || (e.type == BP_MOUSEBUTTONUP && e.button.button == BP_BUTTON_RIGHT)
+        || (e.type == BP_CONTROLLERBUTTONUP && e.cbutton.button == BP_CONTROLLER_BUTTON_START))
     {
-        if (i != pre_pressed_ && Engine::getInstance()->checkKeyPress(i))
+        UI::getInstance()->run();
+    }
+    //fmt1::print("{} {} {}\n",current_frame_, Engine::getTicks(), Timer::getNowAsString());
+    int x = man_x_, y = man_y_;
+    //if (checkPrevTimeElapsed(33))
+    {
+        //键盘走路部分，检测4个方向键
+        int pressed = 0;
+        auto engine = Engine::getInstance();
+        auto axis_x = engine->gameControllerGetAxis(BP_CONTROLLER_AXIS_LEFTX);
+        auto axis_y = engine->gameControllerGetAxis(BP_CONTROLLER_AXIS_LEFTY);
+        if (abs(axis_x) < 10000) { axis_x = 0; }
+        if (abs(axis_y) < 10000) { axis_y = 0; }
+        if (axis_x != 0 || axis_y != 0)
         {
-            pressed = i;
+            Pointf axis{ double(axis_x), double(axis_y) };
+            auto to = realTowardsToFaceTowards(axis);
+            if (to == Towards_LeftUp) { pressed = BPK_LEFT; }
+            if (to == Towards_LeftDown) { pressed = BPK_DOWN; }
+            if (to == Towards_RightDown) { pressed = BPK_RIGHT; }
+            if (to == Towards_RightUp) { pressed = BPK_UP; }
         }
-    }
-    if (pressed == 0 && Engine::getInstance()->checkKeyPress(pre_pressed_))
-    {
-        pressed = pre_pressed_;
-    }
-    pre_pressed_ = pressed;
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_LEFT)) { pressed = BPK_LEFT; }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_DOWN)) { pressed = BPK_DOWN; }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_RIGHT)) { pressed = BPK_RIGHT; }
+        if (engine->gameControllerGetButton(BP_CONTROLLER_BUTTON_DPAD_UP)) { pressed = BPK_UP; }
+        if (engine->checkKeyPress(BPK_a)) { pressed = BPK_LEFT; }
+        if (engine->checkKeyPress(BPK_s)) { pressed = BPK_DOWN; }
+        if (engine->checkKeyPress(BPK_d)) { pressed = BPK_RIGHT; }
+        if (engine->checkKeyPress(BPK_w)) { pressed = BPK_UP; }
 
-    if (pressed)
-    {
-        //注意，中间空出几个步数是为了可以单步行动，子场景同
-        if (total_step_ < 1 || total_step_ >= first_step_delay_)
+        for (auto i = int(BPK_RIGHT); i <= int(BPK_UP); i++)
         {
-            changeTowardsByKey(pressed);
-            getTowardsPosition(man_x_, man_y_, towards_, &x, &y);
-            tryWalk(x, y);
-        }
-        total_step_++;
-    }
-    else
-    {
-        total_step_ = 0;
-    }
-
-    if (pressed && checkEntrance(x, y))
-    {
-        way_que_.clear();
-        total_step_ = 0;
-    }
-
-    if (!way_que_.empty())
-    {
-        Point p = way_que_.back();
-        x = p.x;
-        y = p.y;
-        auto tw = calTowards(man_x_, man_y_, x, y);
-        if (tw != Towards_None)
-        {
-            towards_ = tw;
-        }
-        tryWalk(x, y);
-        way_que_.pop_back();
-        if (way_que_.empty() && mouse_event_x_ >= 0 && mouse_event_y_ >= 0)
-        {
-            towards_ = calTowards(man_x_, man_y_, mouse_event_x_, mouse_event_y_);
-            if (checkEntrance(mouse_event_x_, mouse_event_y_))
+            if (i != pre_pressed_ && engine->checkKeyPress(i))
             {
-                way_que_.clear();
-                setMouseEventPoint(-1, -1);
+                pressed = i;
+            }
+        }
+        if (pressed == 0 && engine->checkKeyPress(pre_pressed_))
+        {
+            pressed = pre_pressed_;
+        }
+        pre_pressed_ = pressed;
+
+        if (pressed)
+        {
+            //注意，中间空出几个步数是为了可以单步行动，子场景同
+            if (total_step_ < 1 || total_step_ >= first_step_delay_)
+            {
+                changeTowardsByKey(pressed);
+                getTowardsPosition(man_x_, man_y_, towards_, &x, &y);
+                tryWalk(x, y);
+            }
+            total_step_++;
+        }
+        else
+        {
+            total_step_ = 0;
+        }
+
+        if (pressed && checkEntrance(x, y))
+        {
+            way_que_.clear();
+            total_step_ = 0;
+        }
+
+        if (!way_que_.empty())
+        {
+            Point p = way_que_.back();
+            x = p.x;
+            y = p.y;
+            auto tw = calTowards(man_x_, man_y_, x, y);
+            if (tw != Towards_None)
+            {
+                towards_ = tw;
+            }
+            tryWalk(x, y);
+            way_que_.pop_back();
+            if (way_que_.empty() && mouse_event_x_ >= 0 && mouse_event_y_ >= 0)
+            {
+                towards_ = calTowards(man_x_, man_y_, mouse_event_x_, mouse_event_y_);
+                if (checkEntrance(mouse_event_x_, mouse_event_y_))
+                {
+                    way_que_.clear();
+                    setMouseEventPoint(-1, -1);
+                }
             }
         }
     }
-
     calCursorPosition(man_x_, man_y_);
 
     //鼠标寻路
@@ -381,7 +410,6 @@ void MainScene::onExit()
 
 void MainScene::onPressedCancel()
 {
-    UI::getInstance()->run();
 }
 
 void MainScene::tryWalk(int x, int y)
@@ -423,7 +451,7 @@ int MainScene::isWater(int x, int y)
 bool MainScene::canWalk(int x, int y)
 {
     //这里不需要加，实际上入口都是无法走到的
-    if (isOutLine(x, y) || isBuilding(x, y))// || isWater(x, y))
+    if (isOutLine(x, y) || isBuilding(x, y))    // || isWater(x, y))
     {
         return false;
     }
@@ -466,7 +494,7 @@ bool MainScene::checkEntrance(int x, int y, bool only_check /*= false*/)
                 UISave::autoSave();
                 //这里看起来要主动多画一帧，待修
                 drawAndPresent();
-                auto sub_map =  std::make_shared<SubScene>(i);
+                auto sub_map = std::make_shared<SubScene>(i);
                 sub_map->setManViewPosition(s->EntranceX, s->EntranceY);
                 sub_map->run();
                 towards_ = sub_map->towards_;

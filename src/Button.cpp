@@ -28,7 +28,7 @@ void Button::draw()
     //视情况重新计算尺寸
     if (w_ * h_ == 0)
     {
-        auto tex = TextureManager::getInstance()->loadTexture(texture_path_, texture_normal_id_);
+        auto tex = TextureManager::getInstance()->getTexture(texture_path_, texture_normal_id_);
         if (tex)
         {
             w_ = tex->w;
@@ -40,20 +40,20 @@ void Button::draw()
     auto id = texture_normal_id_;
     BP_Color color = { 255, 255, 255, 255 };
     uint8_t alpha = 225;
-    if (state_ == Normal)
+    if (state_ == NodeNormal)
     {
         if (texture_normal_id_ == texture_pass_id_)
         {
             color = { 224, 224, 224, 255 };
         }
     }
-    if (state_ == Pass)
+    if (state_ == NodePass)
     {
         id = texture_pass_id_;
         alpha = 240;
         x += 2;
     }
-    else if (state_ == Press)
+    else if (state_ == NodePress)
     {
         id = texture_press_id_;
         alpha = 255;
@@ -65,14 +65,27 @@ void Button::draw()
     if (!text_.empty())
     {
         BP_Color color_text = color_normal_;
-        if (state_ == Pass)
+        if (state_ == NodePass)
         {
             color_text = color_pass_;
         }
-        else if (state_ == Press)
+        else if (state_ == NodePress)
         {
             color_text = color_press_;
         }
         Font::getInstance()->drawWithBox(text_, font_size_, x + text_x_, y + text_y_, color_text, 255, alpha);
+    }
+}
+
+ButtonGetKey::~ButtonGetKey()
+{
+}
+
+void ButtonGetKey::dealEvent(BP_Event& e)
+{
+    if (e.type == BP_KEYUP)
+    {
+        result_ = e.key.keysym.sym;
+        setExit(true);
     }
 }

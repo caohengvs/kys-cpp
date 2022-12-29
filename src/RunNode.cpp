@@ -3,8 +3,8 @@
 #include "UISystem.h"
 
 std::vector<std::shared_ptr<RunNode>> RunNode::root_;
-uint64_t RunNode::prev_present_ticks_ = 0;
-int RunNode::refresh_interval_ = 16;
+double RunNode::global_prev_present_ticks_ = 0;
+double RunNode::refresh_interval_ = 16.666666;
 int RunNode::render_message_ = 0;
 
 RunNode::~RunNode()
@@ -135,7 +135,7 @@ void RunNode::setAllChildVisible(bool v)
 
 int RunNode::findNextVisibleChild(int i0, Direct direct)
 {
-    if (direct == None || childs_.size() == 0)
+    if (direct == DIrectNone || childs_.size() == 0)
     {
         return i0;
     }
@@ -154,19 +154,19 @@ int RunNode::findNextVisibleChild(int i0, Direct direct)
         int dis1, dis2;
         switch (direct)
         {
-        case Left:
+        case DirectLeft:
             dis1 = current->x_ - c->x_;
             dis2 = abs(c->y_ - current->y_);
             break;
-        case Up:
+        case DirectUp:
             dis1 = current->y_ - c->y_;
             dis2 = abs(c->x_ - current->x_);
             break;
-        case Right:
+        case DirectRight:
             dis1 = c->x_ - current->x_;
             dis2 = abs(c->y_ - current->y_);
             break;
-        case Down:
+        case DirectDown:
             dis1 = c->y_ - current->y_;
             dis2 = abs(c->x_ - current->x_);
             break;
@@ -250,7 +250,7 @@ void RunNode::checkStateSelfChilds(BP_Event& e, bool check_event)
     }
     else
     {
-        state_ = Normal;
+        state_ = NodeNormal;
     }
 }
 
@@ -271,25 +271,49 @@ void RunNode::dealEventSelfChilds(bool check_event)
         BP_Event e;
         e.type = BP_FIRSTEVENT;
         //此处这样设计的原因是某些系统下会连续生成一大串事件，如果每个循环仅处理一个会造成响应慢
-        while (Engine::pollEvent(e))
+        while (Engine::getInstance()->pollEvent(e))
         {
             if (isSpecialEvent(e))
             {
                 break;
             }
         }
-        //if (e.type == BP_MOUSEBUTTONUP)
-        //{
-        //    fmt::print("BP_MOUSEBUTTONUP\n");
-        //}
-        checkStateSelfChilds(e, check_event);
-        switch (e.type)
+        if (e.type == BP_CONTROLLERAXISMOTION)
         {
-        case BP_QUIT:
+            BP_Event e1;
+            while (Engine::getInstance()->pollEvent(e1));
+            if (e.caxis.axis == SDL_CONTROLLER_AXIS_RIGHTX || e.caxis.axis == SDL_CONTROLLER_AXIS_RIGHTY)
+            {
+                auto axis_x = Engine::getInstance()->gameControllerGetAxis(BP_CONTROLLER_AXIS_RIGHTX);
+                auto axis_y = Engine::getInstance()->gameControllerGetAxis(BP_CONTROLLER_AXIS_RIGHTY);
+
+                int x, y;
+                Engine::getInstance()->getMouseState(x, y);
+                //fmt1::print("{} {}  ", axis_x, axis_y);
+                if (abs(axis_x) < 5000) { axis_x = 0; }
+                if (abs(axis_y) < 5000) { axis_y = 0; }
+                if (axis_x != 0 || axis_y != 0)
+                {
+                    x += axis_x / 500;
+                    y += axis_y / 500;
+                    int w, h;
+                    Engine::getInstance()->getWindowSize(w, h);
+                    if (x >= w) { x = w - 1; }
+                    if (x < 0) { x = 0; }
+                    if (y >= h) { y = h - 1; }
+                    if (y < 0) { y = 0; }
+                    Engine::getInstance()->setMouseState(x, y);
+                    e.type = BP_MOUSEMOTION;
+                    e.motion.x = x;
+                    e.motion.y = y;
+                }
+            }
+        }
+        checkStateSelfChilds(e, check_event);
+        if (e.type == BP_QUIT
+            || (e.type == BP_WINDOWEVENT && e.window.event == BP_WINDOWEVENT_CLOSE))
+        {
             UISystem::askExit(1);
-            break;
-        default:
-            break;
         }
     }
     else
@@ -301,22 +325,30 @@ void RunNode::dealEventSelfChilds(bool check_event)
 //是否为游戏需要处理的类型，避免丢失一些操作
 bool RunNode::isSpecialEvent(BP_Event& e)
 {
-    return e.type == BP_MOUSEBUTTONDOWN
-        || e.type == BP_MOUSEBUTTONUP
+    //fmt1::print("type = {}\n", e.type);
+    return  e.type == BP_QUIT
+        || e.type == BP_WINDOWEVENT
         || e.type == BP_KEYDOWN
         || e.type == BP_KEYUP
+        || e.type == BP_TEXTEDITING
         || e.type == BP_TEXTINPUT
-        || e.type == BP_TEXTEDITING;
+        || e.type == BP_MOUSEMOTION
+        || e.type == BP_MOUSEBUTTONDOWN
+        || e.type == BP_MOUSEBUTTONUP
+        || e.type == BP_MOUSEWHEEL
+        || e.type == BP_CONTROLLERAXISMOTION
+        || e.type == BP_CONTROLLERBUTTONDOWN
+        || e.type == BP_CONTROLLERBUTTONUP;
 }
 
 void RunNode::forceActiveChild()
 {
     for (int i = 0; i < childs_.size(); i++)
     {
-        childs_[i]->setState(Normal);
+        childs_[i]->setState(NodeNormal);
         if (i == active_child_)
         {
-            childs_[i]->setState(Pass);
+            childs_[i]->setState(NodePass);
         }
     }
 }
@@ -338,7 +370,7 @@ int RunNode::checkChildState()
     int r = -1;
     for (int i = 0; i < getChildCount(); i++)
     {
-        if (getChild(i)->getState() != Normal)
+        if (getChild(i)->getState() != NodeNormal)
         {
             r = i;
         }
@@ -349,62 +381,72 @@ int RunNode::checkChildState()
 void RunNode::checkSelfState(BP_Event& e)
 {
     //检测鼠标经过，按下等状态
-    //注意BP_MOUSEMOTION在mac下面有些问题，待查
+    //BP_MOUSEMOTION似乎有些问题，待查
+    //fmt1::print("{} ", e.type);
     if (e.type == BP_MOUSEMOTION)
     {
         if (inSide(e.motion.x, e.motion.y))
         {
-            state_ = Pass;
+            state_ = NodePass;
         }
         else
         {
-            state_ = Normal;
+            state_ = NodeNormal;
         }
     }
     if ((e.type == BP_MOUSEBUTTONDOWN || e.type == BP_MOUSEBUTTONUP) && e.button.button == BP_BUTTON_LEFT)
     {
         if (inSide(e.button.x, e.button.y))
         {
-            state_ = Press;
+            state_ = NodePress;
         }
         else
         {
-            state_ = Normal;
+            state_ = NodeNormal;
         }
     }
     if ((e.type == BP_KEYDOWN || e.type == BP_KEYUP) && (e.key.keysym.sym == BPK_RETURN || e.key.keysym.sym == BPK_SPACE))
     {
         //按下键盘的空格或者回车时，将pass的按键改为press
-        if (state_ == Pass)
+        if (state_ == NodePass)
         {
-            state_ = Press;
+            state_ = NodePress;
+        }
+    }
+    if ((e.type == BP_CONTROLLERBUTTONDOWN || e.type == BP_CONTROLLERBUTTONUP) && e.cbutton.button == BP_CONTROLLER_BUTTON_A)
+    {
+        //int x, y;
+        //Engine::getInstance()->getMouseState(x, y);
+        if (state_ == NodePass)
+        {
+            state_ = NodePress;
         }
     }
 }
 
 void RunNode::present()
 {
-    int t = Engine::getTicks() - prev_present_ticks_;
+    auto t = Engine::getTicks() - global_prev_present_ticks_;
 
     if (render_message_)
     {
         auto e = Engine::getInstance();
-        Font::getInstance()->draw("Render one frame in " + std::to_string(t) + " ms", 20, e->getWindowWidth() - 300, e->getWindowHeight() - 60);
-        Font::getInstance()->draw("RenderCopy time is " + std::to_string(Engine::getInstance()->getRenderTimes()), 20, e->getWindowWidth() - 300, e->getWindowHeight() - 35);
+        Font::getInstance()->draw(fmt1::format("Render one frame in {:.3f} ms", t), 20, e->getWindowWidth() - 300, e->getWindowHeight() - 60);
+        Font::getInstance()->draw(fmt1::format("RenderCopy time is {}", Engine::getInstance()->getRenderTimes()), 20, e->getWindowWidth() - 300, e->getWindowHeight() - 35);
         e->resetRenderTimes();
     }
     Engine::getInstance()->renderPresent();
-    int t_delay = refresh_interval_ - t;
+    auto t_delay = refresh_interval_ - t;
     if (t_delay > refresh_interval_)
     {
         t_delay = refresh_interval_;
     }
-    //fmt::print("{}/{}/{} ", t, t_delay, prev_present_ticks_);
+    //fmt1::print("{}/{}/{} ", t, t_delay, global_prev_present_ticks_);
     if (t_delay > 0)
     {
         Engine::delay(t_delay);
     }
-    prev_present_ticks_ = Engine::getTicks();
+    global_prev_present_ticks_ = Engine::getTicks();
 }
 
 //运行本节点，参数为是否在root中运行，为真则参与绘制，为假则不会被画出

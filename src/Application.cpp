@@ -7,6 +7,7 @@
 #include "Random.h"
 #include "TextureManager.h"
 #include "TitleScene.h"
+#include "UIKeyConfig.h"
 
 Application::Application()
 {
@@ -19,7 +20,7 @@ Application::~Application()
 int Application::run()
 {
     auto engine = Engine::getInstance();
-    engine->setStartWindowSize(1600, 900);
+    engine->setStartWindowSize(1280, 720);
     engine->init();    //引擎初始化之后才能创建纹理
     engine->createAssistTexture(800, 450);
 
@@ -34,11 +35,17 @@ int Application::run()
 void Application::config()
 {
     auto game = GameUtil::getInstance();
-    RunNode::setRefreshInterval(game->getInt("game", "refresh_interval", 16));
+    //RunNode::setRefreshInterval(game->getReal("game", "refresh_interval", 16));
     Audio::getInstance()->setVolume(game->getInt("music", "volume", 50));
     Event::getInstance()->setUseScript(game->getInt("game", "use_script", 0));
     Font::getInstance()->setStatMessage(game->getInt("game", "stat_font", 0));
+    Font::getInstance()->setSimplified(game->getInt("game", "simplified chinese", 1));
     Engine::getInstance()->setWindowTitle(game->getString("game", "title", "All Heroes in Kam Yung Stories"));
     TextureManager::getInstance()->setLoadFromPath(game->getInt("game", "png_from_path", 0));
     TextureManager::getInstance()->setLoadAll(game->getInt("game", "load_all_png", 0));
+    UIKeyConfig::readFromString(game->getString("game", "key", ""));
+
+    Role::setMaxValue();
+    Role::setLevelUpList();
+    Item::setSpecialItems();
 }

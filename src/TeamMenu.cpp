@@ -38,7 +38,7 @@ void TeamMenu::onEntrance()
             heads_[i]->setRole(r);
             if (mode_ == 0 && item_)
             {
-                if (!GameUtil::canUseItem(r, item_))
+                if (!r->canUseItem(item_))
                 {
                     heads_[i]->setText("不適合");
                 }
@@ -91,12 +91,12 @@ void TeamMenu::onPressedOK()
         role_ = nullptr;
         for (auto h : heads_)
         {
-            if (h->getState() == Press)
+            if (h->getState() == NodePress)
             {
                 role_ = h->getRole();
             }
         }
-        if (role_)
+        if (role_ && (item_ == nullptr || role_->canUseItem(item_)))
         {
             result_ = 0;
             setExit(true);
@@ -106,7 +106,7 @@ void TeamMenu::onPressedOK()
     {
         for (auto h : heads_)
         {
-            if (h->getState() == Press)
+            if (h->getState() == NodePress)
             {
                 if (h->getResult() == -1)
                 {
@@ -118,7 +118,7 @@ void TeamMenu::onPressedOK()
                 }
             }
         }
-        if (button_all_->getState() == Press)
+        if (button_all_->getState() == NodePress)
         {
             //如果已经全选，则是清除
             int all = -1;
@@ -135,7 +135,7 @@ void TeamMenu::onPressedOK()
                 h->setResult(all);
             }
         }
-        if (button_ok_->getState() == Press)
+        if (button_ok_->getState() == NodePress)
         {
             //没有人被选中，不能确定
             for (auto h : heads_)
@@ -168,10 +168,10 @@ void TeamMenu::dealEvent(BP_Event& e)
         {
             for (auto h : heads_)
             {
-                if (h->getState() != Normal && !GameUtil::canUseItem(h->getRole(), item_))
-                {
-                    h->setState(Normal);
-                }
+                //if (h->getState() != NodeNormal && !GameUtil::canUseItem(h->getRole(), item_))
+                //{
+                //    h->setState(NodeNormal);
+                //}
             }
         }
     }
@@ -188,6 +188,29 @@ void TeamMenu::dealEvent(BP_Event& e)
                 h->setText("");
             }
         }
-        getChild(active_child_)->setState(Press);
+        getChild(active_child_)->setState(NodePress);
+    }
+    if (force_main_ && !heads_.empty())
+    {
+        heads_[0]->setResult(0);
+    }
+    if (e.type == BP_KEYUP)
+    {
+        if (e.key.keysym.sym == BPK_a)
+        {
+            for (auto h : heads_)
+            {
+                h->setState(NodeNormal);
+            }
+            button_all_->setState(NodePress);
+            button_ok_->setState(NodeNormal);
+            e.key.keysym.sym = BPK_RETURN;
+        }
+        if (e.key.keysym.sym == BPK_o)
+        {
+            button_all_->setState(NodeNormal);
+            button_ok_->setState(NodePress);
+            e.key.keysym.sym = BPK_RETURN;
+        }
     }
 }
